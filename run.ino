@@ -1,6 +1,7 @@
 #include <Encoder.h> // Include encoder library
 #include <MPU6050.h> // Include MPU6050 library
 #include <NewPing.h> // Include NewPing for ultrasonic sensors
+#include <queue> // Include queue for flood fill algorithm
 
 // Constants
 const int MAZE_WIDTH = 9;
@@ -26,6 +27,7 @@ bool visited[MAZE_WIDTH][MAZE_HEIGHT]; // Visited cells
 // Position variables
 int currentX = 0;
 int currentY = 0;
+int currentDirection = 0; // 0: North, 1: East, 2: South, 3: West
 
 // Motor control
 void driveForward(int duration);
@@ -42,6 +44,7 @@ void returnToStart();
 void storeFastestPath();
 int getDistance(int sensor);
 bool isWall(int x, int y, int direction);
+void updateFloodFill();
 
 void setup() {
   Serial.begin(9600);
@@ -117,36 +120,94 @@ bool isWall(int x, int y, int direction) {
 }
 
 void driveToCenter() {
-  // Use flood values to navigate to the center
-  while (currentX != 5 || currentY != 4) { // Replace with actual center cell logic
-    // Logic to choose direction based on flood values
-    // Move to the cell with the lowest flood value
-    // Update currentX and currentY
+  while (floodValues[currentX][currentY] != 0) {
+    int minVal = INF;
+    int nextDirection = -1;
+    
+    for (int dir = 0; dir < 4; dir++) {
+      int newX = currentX + (dir == 0 ? 0 : dir == 1 ? 1 : dir == 2 ? 0 : -1);
+      int newY = currentY + (dir == 0 ? -1 : dir == 1 ? 0 : dir == 2 ? 1 : 0);
+
+      if (newX >= 0 && newX < MAZE_WIDTH && newY >= 0 && newY < MAZE_HEIGHT &&
+          !isWall(currentX, currentY, dir) && floodValues[newX][newY] < minVal) {
+        minVal = floodValues[newX][newY];
+        nextDirection = dir;
+      }
+    }
+
+    if (nextDirection == -1) break; // No valid move, exit
+    
+    if (nextDirection != currentDirection) {
+      if ((currentDirection + 1) % 4 == nextDirection) {
+        turnRight();
+      } else if ((currentDirection + 3) % 4 == nextDirection) {
+        turnLeft();
+      } else {
+        turnLeft();
+        turnLeft();
+      }
+      currentDirection = nextDirection;
+    }
+
+    driveForward(1000); // Drive forward for a set duration
+
+    currentX = currentX + (currentDirection == 1 ? 1 : currentDirection == 3 ? -1 : 0);
+    currentY = currentY + (currentDirection == 0 ? -1 : currentDirection == 2 ? 1 : 0);
+
+    // Update flood fill based on newly discovered walls
+    updateFloodFill();
   }
 }
 
 void returnToStart() {
-  // Implement logic to return to the start via a different path
-  // Possibly re-run flood fill or use a stored path
-}
+  // Temporarily mark the center as walls to force a different path
+  for (int i = 0; i < 4; i++) {
+    maze[CENTER_CELLS[i][0]][CENTER_CELLS[i][1]] = 1;
+  }
 
-void driveForward(int duration) {
-  // Control motors to drive forward
-}
+  floodFill(); // Recalculate flood values
 
-void turnLeft() {
-  // Control motors to turn left
-}
+  while (currentX != 0 || currentY != 0) {
+    int minVal = INF;
+    int nextDirection = -1;
+    
+    for (int dir = 0; dir < 4; dir++) {
+      int newX = currentX + (dir == 0 ? 0 : dir == 1 ? 1 : dir == 2 ? 0 : -1);
+      int newY = currentY + (dir == 0 ? -1 : dir == 1 ? 0 : dir == 2 ? 1 : 0);
 
-void turnRight() {
-  // Control motors to turn right
-}
+      if (newX >= 0 && newX < MAZE_WIDTH && newY >= 0 && newY < MAZE_HEIGHT &&
+          !isWall(currentX, currentY, dir) && floodValues[newX][newY] < minVal) {
+        minVal = floodValues[newX][newY];
+        nextDirection = dir;
+      }
+    }
 
-void stopMotors() {
-  // Stop both motors
-}
+    if (nextDirection == -1) break; // No valid move, exit
+    
+    if (nextDirection != currentDirection) {
+      if ((currentDirection + 1) % 4 == nextDirection) {
+        turnRight();
+      } else if ((currentDirection + 3) % 4 == nextDirection) {
+        turnLeft();
+      } else {
+        turnLeft();
+        turnLeft();
+      }
+      currentDirection = nextDirection;
+    }
 
-int getDistance(int sensor) {
-  // Get distance from the specified ultrasonic sensor
-  return 0; // Placeholder for actual distance measurement
-}
+    driveForward(1000); // Drive forward for a set duration
+
+    currentX = currentX + (currentDirection == 1 ? 1 : currentDirection == 3 ? -1 : 0);
+    currentY = currentY + (currentDirection == 0 ? -1 : currentDirection == 2 ? 1 : 0);
+
+    // Update flood fill based on newly discovered walls
+    updateFloodFill();
+  }
+
+  // Restore the center cells
+  for (int i = 0; i < 4; i++) {
+    maze[CENTER_CELLS[i][0]][CENTER_CELLS[i][1]] = 0;
+  }
+
+  floodFill(); //
