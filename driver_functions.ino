@@ -3,6 +3,7 @@
 #include "I2Cdev.h"
 #include "NewPing.h"
 #include "PinChangeInterrupt.h"
+#include <tcs3200.h>
 
 //////////////////////ULTRASONIC VARS/////////////////////////////////////
 #define TRIGGER_PIN  17  // Ultrasonic Trigger pin
@@ -58,6 +59,7 @@ const int out = 13;
 int  Red=0, Blue=0, Green=0; 
 bool middle = false;
 int possible_turns[4]={1,1,1,1}; //Array to keep track of possible turns. {front, right, left, rear}. 1 = turn possble. 0 = no turn possible
+tcs3200 tcs(1, 0, s2, s3, out); // (S0, S1, S2, S3, output pin) //  ---  see:  https://www.mouser.com/catalog/specsheets/TCS3200-E11.pdf
 
 
 void setup() {
@@ -104,8 +106,8 @@ void loop() {
 
 setSpeed(100,PWMright1);
 setSpeed(0,PWMright2);
-setSpeed(0,PWMleft1);
-setSpeed(100,PWMleft2);
+setSpeed(100,PWMleft1);
+setSpeed(0,PWMleft2);
 
 // delay(1000);
 // for (int i = 0; i <= 100; i++){
@@ -123,9 +125,9 @@ setSpeed(100,PWMleft2);
 //   Serial.print("\t");
 //   Serial.println(euler[2] * 180/M_PI);
 // }
-// GetColors();
+GetColors();
 // CheckifSolved();
-delay(500);
+delay(200);
 
 } 
 
@@ -167,58 +169,58 @@ void setSpeed(float speed, int pin){
   analogWrite(pin, dutycycle); //or digitalwrite????
 }
 
-// R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn;
-void Turn(bool R_L, int degree, int turn_speed) 
-{
-    // while(degree!=90){
-        if (R_L){
-            setSpeed(turn_speed,PWMright1);
-            setSpeed(0,PWMright2);
-            setSpeed(turn_speed,PWMleft1);
-            setSpeed(0,PWMleft2);
-        }
-        else{
-            setSpeed(turn_speed,PWMright1);
-            setSpeed(0,PWMright2);
-            setSpeed(turn_speed,PWMleft1);
-            setSpeed(0,PWMleft2);
-        }
-    // }
-}
-//R_L_BOTH: 0=right motor only; 1=left motor only; 2=both motors
-void motors_stop(int R_L_BOTH) 
-{
-    if (R_L_BOTH == 0){
-        setSpeed(0,PWMright1);
-        setSpeed(0,PWMright2);
-    }
-    else if (R_L_BOTH == 1){
-        setSpeed(0,PWMleft1);
-        setSpeed(0,PWMleft2);
-    }
-    else if (R_L_BOTH == 2){
-        setSpeed(0,PWMright1);
-        setSpeed(0,PWMright2);
-        setSpeed(0,PWMleft1);
-        setSpeed(0,PWMleft2);
-    }
-}
-//direction: true=forwad; false=backwards
-void motors_straight(bool direction, int speed) 
-{
-    if (direction){
-        setSpeed(0,PWMright1);
-        setSpeed(speed,PWMright2);
-        setSpeed(speed,PWMleft1);
-        setSpeed(0,PWMleft2);
-    }
-    else{
-        setSpeed(speed,PWMright1);
-        setSpeed(0,PWMright2);
-        setSpeed(0,PWMleft1);
-        setSpeed(speed,PWMleft2);
-    }
-}
+// // R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn;
+// void Turn(bool R_L, int degree, int turn_speed) 
+// {
+//     // while(degree!=90){
+//         if (R_L){
+//             setSpeed(turn_speed,PWMright1);
+//             setSpeed(0,PWMright2);
+//             setSpeed(turn_speed,PWMleft1);
+//             setSpeed(0,PWMleft2);
+//         }
+//         else{
+//             setSpeed(turn_speed,PWMright1);
+//             setSpeed(0,PWMright2);
+//             setSpeed(turn_speed,PWMleft1);
+//             setSpeed(0,PWMleft2);
+//         }
+//     // }
+// }
+// //R_L_BOTH: 0=right motor only; 1=left motor only; 2=both motors
+// void motors_stop(int R_L_BOTH) 
+// {
+//     if (R_L_BOTH == 0){
+//         setSpeed(0,PWMright1);
+//         setSpeed(0,PWMright2);
+//     }
+//     else if (R_L_BOTH == 1){
+//         setSpeed(0,PWMleft1);
+//         setSpeed(0,PWMleft2);
+//     }
+//     else if (R_L_BOTH == 2){
+//         setSpeed(0,PWMright1);
+//         setSpeed(0,PWMright2);
+//         setSpeed(0,PWMleft1);
+//         setSpeed(0,PWMleft2);
+//     }
+// }
+// //direction: true=forwad; false=backwards
+// void motors_straight(bool direction, int speed) 
+// {
+//     if (direction){
+//         setSpeed(0,PWMright1);
+//         setSpeed(speed,PWMright2);
+//         setSpeed(speed,PWMleft1);
+//         setSpeed(0,PWMleft2);
+//     }
+//     else{
+//         setSpeed(speed,PWMright1);
+//         setSpeed(0,PWMright2);
+//         setSpeed(0,PWMleft1);
+//         setSpeed(speed,PWMleft2);
+//     }
+// }
 
 
 ///////////////////////////////////////////////////////////Ultrasonic/////////////////////////////////////////////////
@@ -275,52 +277,55 @@ void read_ultra(int which, bool recurse){
 
 void GetColors()  
 {    
-  digitalWrite(s2,  LOW);                                           //S2/S3 levels define which set  of photodiodes we are using LOW/LOW is for RED LOW/HIGH is for Blue and HIGH/HIGH  is for green 
-  digitalWrite(s3, LOW); 
-  delay(100);
-  Red = pulseIn(out, LOW);       //here we wait  until "out" go LOW, we start measuring the duration and stops when "out" is  HIGH again, if you have trouble with this expression check the bottom of the code
-  int RedMap=map(Red,27,172,255,0);
-  delay(100);  
-  digitalWrite(s2,  LOW);
-  digitalWrite(s3, HIGH);                                         //Here  we select the other color (set of photodiodes) and measure the other colors value  using the same techinque
-  Blue = pulseIn(out, LOW);
-  int BlueMap=map(Blue,27,172,255,0);
-  delay(100);
-  digitalWrite(s2,  HIGH);
-  digitalWrite(s3, HIGH);  
-  delay(100);
-  Green = pulseIn(out,LOW);
-  delay(100);
-  int GreenMap=map(Green,27,172,255,0);
-  Serial.print("RGB: ");     //output RGB
-  Serial.print(RedMap,DEC);
-  Serial.print(" ");
-  Serial.print(GreenMap,DEC);
-  Serial.print(" ");
-  Serial.print(BlueMap,DEC);
-  Serial.print(" ");
-  Serial.println("");
+  #define num_of_colors 7   // Declares the number of colors the program can recognise (number of calibrated colors)
+
+  // distinctRGB[] array declares calibration values for each declared color in distinctColors[] array
+  int distinctRGB[num_of_colors][3] = {{250, 250, 250}, {8,8 , 8}, {142, 34, 41}, {166, 125, 71}, {35, 55, 38}, {150, 50, 43}, {12, 12, 12}};
+  // distinctColors[] array declares values to be returned from closestColor() function if specified color is recognised
+  String distinctColors[num_of_colors] = {"white", "black", "red", "yellow", "green", "orange", "blue"};
+
+  int red, green, blue;
+  Serial.println(tcs.closestColor(distinctRGB, distinctColors, num_of_colors) );
+
+  // red = tcs.colorRead('r');   //reads color value for red
+  // Serial.print("R= ");
+  // Serial.print(red);
+  // Serial.print("    ");
+  
+  // green = tcs.colorRead('g');   //reads color value for green
+  // Serial.print("G= ");
+  // Serial.print(green);
+  // Serial.print("    ");
+
+  // blue = tcs.colorRead('b');    //reads color value for blue
+  // Serial.print("B= ");
+  // Serial.print(blue);
+  // Serial.print("    ");
+
+  Serial.println();
+
+  delay(200);
 }
 
 
 //sets middle = true if robot has reaced the middle.
-void CheckifSolved(){
-    if (Red > Green && Red > Blue ) {       
-      Serial.println("- RED detected!");      
-      middle=false;
-    }
-    if(Blue > Red && Blue > Green){
-        Serial.println(" - BLUE detected!");
-        motors_stop(2);
-        middle=true;
-    }
-    // else{
-    //     motors_straight(true, 100);
-    // }
-    if(Green > Red && Green > Blue){
-        Serial.println(" - Green detected!");
-    }
-}
+// void CheckifSolved(){
+//     if (Red > Green && Red > Blue ) {       
+//       Serial.println("- RED detected!");      
+//       // middle=false;
+//     }
+//     if(Blue > Red && Blue > Green){
+//         Serial.println(" - BLUE detected!");
+//         // motors_stop(2);
+//         // middle=true;
+//     }
+//     // else{
+//     //     motors_straight(true, 100);
+//     // }
+//     if(Green > Red && Green > Blue){
+//         Serial.println(" - Green detected!");
+//     }
+// }
 
 
 ////////////////////////////////////MPU FUNCTIONS////////////////////////////////////
