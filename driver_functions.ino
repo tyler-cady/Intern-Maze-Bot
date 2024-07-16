@@ -4,9 +4,10 @@
 #include "NewPing.h"
 #include "PinChangeInterrupt.h"
 #include <tcs3200.h>
+#include "Adafruit_APDS9960.h"
 
 //////////////////////ULTRASONIC VARS/////////////////////////////////////
-#define TRIGGER_PIN  17  // Ultrasonic Trigger pin
+#define TRIGGER_PIN  A3  // Ultrasonic Trigger pin
 #define ECHO_FRONT  16 // Ultrasonic Echo pin
 #define ECHO_RIGHT  15 // Ultrasonic Echo pin
 #define ECHO_LEFT  14 // Ultrasonic Echo pin
@@ -53,13 +54,17 @@ Quaternion q;           // [w, x, y, z]         quaternion container
 float euler[3];         // [psi, theta, phi]    Euler angle container
 ////////////////////////////COLOR SENSOR/////////////////////////////////
   
-const int s2 = A6;  
-const int s3 = A7;  
-const int out = 13; 
-int  Red=0, Blue=0, Green=0; 
-bool middle = false;
-int possible_turns[4]={1,1,1,1}; //Array to keep track of possible turns. {front, right, left, rear}. 1 = turn possble. 0 = no turn possible
-tcs3200 tcs(1, 0, s2, s3, out); // (S0, S1, S2, S3, output pin) //  ---  see:  https://www.mouser.com/catalog/specsheets/TCS3200-E11.pdf
+// const int s2 = A6;  
+// const int s3 = A7;  
+// const int out = 13; 
+// int  Red=0, Blue=0, Green=0; 
+// bool middle = false;
+// int possible_turns[4]={1,1,1,1}; //Array to keep track of possible turns. {front, right, left, rear}. 1 = turn possble. 0 = no turn possible
+// tcs3200 tcs(1, 0, s2, s3, out); // (S0, S1, S2, S3, output pin) //  ---  see:  https://www.mouser.com/catalog/specsheets/TCS3200-E11.pdf
+//
+#define ADPS_I2C 0x39
+Adafruit_APDS9960 apds;
+uint16_t r, g, b, c;
 
 
 void setup() {
@@ -88,45 +93,52 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoder2Pin2),updateEncoder2, CHANGE);
 
   MPU_setup();
+  APDS_setup();
+
+
 
 }
 
 void loop() {
-//  setSpeed(0,PWMright1);
-//  setSpeed(100,PWMright2);
-//  setSpeed(0,PWMleft1);
-//  setSpeed(100,PWMleft2);
+ setSpeed(0,PWMright1);
+ setSpeed(100,PWMright2);
+ setSpeed(0,PWMleft1);
+ setSpeed(100,PWMleft2);
 
 // // for (int i = 0; i <= 100; i++){
 // //  Serial.print("Forward  ");
 // //  Serial.println(encoderValue);
 // // }
 
-// delay(1000);
+delay(5000);
 
 setSpeed(100,PWMright1);
 setSpeed(0,PWMright2);
 setSpeed(100,PWMleft1);
 setSpeed(0,PWMleft2);
 
-// delay(1000);
+delay(5000);
+
+APDS_GetColors();
 // for (int i = 0; i <= 100; i++){
 //  Serial.print("Reverse  ");
 //  Serial.println(encoderValue);
 // }
-// if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
-//   // display Euler angles in degrees
-//   mpu.dmpGetQuaternion(&q, fifoBuffer);
-//   mpu.dmpGetEuler(euler, &q);
-//   Serial.print("euler\t");
-//   Serial.print(euler[0] * 180/M_PI);
-//   Serial.print("\t");
-//   Serial.print(euler[1] * 180/M_PI);
-//   Serial.print("\t");
-//   Serial.println(euler[2] * 180/M_PI);
-// }
-GetColors();
-// CheckifSolved();
+delay(1000);
+if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+  // display Euler angles in degrees
+  mpu.dmpGetQuaternion(&q, fifoBuffer);
+  mpu.dmpGetEuler(euler, &q);
+  Serial.print("euler\t");
+  Serial.print(euler[0] * 180/M_PI);
+  Serial.print("\t");
+  Serial.print(euler[1] * 180/M_PI);
+  Serial.print("\t");
+  Serial.println(euler[2] * 180/M_PI);
+}
+// read_ultra(3,true);
+// GetColors();
+CheckifSolved();
 delay(200);
 
 } 
@@ -275,58 +287,99 @@ void read_ultra(int which, bool recurse){
 }
 //////////////////////////////COLOR SENSOR FUNCTIONS/////////////////////////////////////////
 
-void GetColors()  
-{    
-  #define num_of_colors 7   // Declares the number of colors the program can recognise (number of calibrated colors)
+void APDS_setup(){
+    if(!apds.begin()){
+    Serial.println("failed to initialize device! Please check your wiring.");
+  }
+  else Serial.println("Device initialized!");
 
-  // distinctRGB[] array declares calibration values for each declared color in distinctColors[] array
-  int distinctRGB[num_of_colors][3] = {{250, 250, 250}, {8,8 , 8}, {142, 34, 41}, {166, 125, 71}, {35, 55, 38}, {150, 50, 43}, {12, 12, 12}};
-  // distinctColors[] array declares values to be returned from closestColor() function if specified color is recognised
-  String distinctColors[num_of_colors] = {"white", "black", "red", "yellow", "green", "orange", "blue"};
+  //enable color sensign mode
+  apds.enableColor(true);
+}
+void APDS_GetColors(){
 
-  int red, green, blue;
-  Serial.println(tcs.closestColor(distinctRGB, distinctColors, num_of_colors) );
+  // Wire.beginTransmission(ADPS_I2C);  // read from device
 
-  // red = tcs.colorRead('r');   //reads color value for red
-  // Serial.print("R= ");
-  // Serial.print(red);
-  // Serial.print("    ");
+
+   //wait for color data to be ready
+  while(!apds.colorDataReady()){
+    delay(5);
+  }
+
+  //get the data and print the different channels
+  apds.getColorData(&r, &g, &b, &c);
+  Serial.print("red: ");
+  Serial.print(r);
   
-  // green = tcs.colorRead('g');   //reads color value for green
-  // Serial.print("G= ");
-  // Serial.print(green);
-  // Serial.print("    ");
-
-  // blue = tcs.colorRead('b');    //reads color value for blue
-  // Serial.print("B= ");
-  // Serial.print(blue);
-  // Serial.print("    ");
-
+  Serial.print(" green: ");
+  Serial.print(g);
+  
+  Serial.print(" blue: ");
+  Serial.print(b);
+  
+  Serial.print(" clear: ");
+  Serial.println(c);
   Serial.println();
 
-  delay(200);
+  // Wire.endTransmission();      // Stop transmitting
+  delay(500);
+  
 }
 
+// void GetColors()  
+// {    
+//   #define num_of_colors 7   // Declares the number of colors the program can recognise (number of calibrated colors)
 
-//sets middle = true if robot has reaced the middle.
-// void CheckifSolved(){
-//     if (Red > Green && Red > Blue ) {       
-//       Serial.println("- RED detected!");      
-//       // middle=false;
-//     }
-//     if(Blue > Red && Blue > Green){
-//         Serial.println(" - BLUE detected!");
-//         // motors_stop(2);
-//         // middle=true;
-//     }
-//     // else{
-//     //     motors_straight(true, 100);
-//     // }
-//     if(Green > Red && Green > Blue){
-//         Serial.println(" - Green detected!");
-//     }
+//   // distinctRGB[] array declares calibration values for each declared color in distinctColors[] array
+//   int distinctRGB[num_of_colors][3] = {{250, 250, 250}, {8,8 , 8}, {142, 34, 41}, {166, 125, 71}, {35, 55, 38}, {150, 50, 43}, {12, 12, 12}};
+//   // distinctColors[] array declares values to be returned from closestColor() function if specified color is recognised
+//   String distinctColors[num_of_colors] = {"white", "black", "red", "yellow", "green", "orange", "blue"};
+
+//   int red, green, blue;
+//   Serial.println(tcs.closestColor(distinctRGB, distinctColors, num_of_colors) );
+
+//   // red = tcs.colorRead('r');   //reads color value for red
+//   // Serial.print("R= ");
+//   // Serial.print(red);
+//   // Serial.print("    ");
+  
+//   // green = tcs.colorRead('g');   //reads color value for green
+//   // Serial.print("G= ");
+//   // Serial.print(green);
+//   // Serial.print("    ");
+
+//   // blue = tcs.colorRead('b');    //reads color value for blue
+//   // Serial.print("B= ");
+//   // Serial.print(blue);
+//   // Serial.print("    ");
+
+//   Serial.println();
+
+//   delay(200);
 // }
 
+
+void CheckifSolved(){
+    if (r > g && r > b ) {       
+      Serial.println("- RED detected!");      
+      // middle=false;
+    }
+    if(b > r && b > g){
+        Serial.println(" - BLUE detected!");
+        // motors_stop(2);
+        // middle=true;
+    }
+    // else{
+    //     motors_straight(true, 100);
+    // }
+    if(g > r && g > b){
+        Serial.println(" - Green detected!");
+    }
+    if( g < 12 && r < 12 && b < 12){
+      Serial.println(" - BLACK detected!");
+
+    }
+}
 
 ////////////////////////////////////MPU FUNCTIONS////////////////////////////////////
 void MPU_setup() {
