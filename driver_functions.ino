@@ -85,7 +85,7 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoder2Pin1),updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2),updateEncoder2, CHANGE);
 
-  // MPU_setup();
+  MPU_setup();
 
 }
 
@@ -123,8 +123,8 @@ setSpeed(100,PWMleft2);
 //   Serial.print("\t");
 //   Serial.println(euler[2] * 180/M_PI);
 // }
-GetColors();
-CheckifSolved();
+// GetColors();
+// CheckifSolved();
 delay(500);
 
 } 
@@ -174,14 +174,14 @@ void Turn(bool R_L, int degree, int turn_speed)
         if (R_L){
             setSpeed(turn_speed,PWMright1);
             setSpeed(0,PWMright2);
-            // setSpeed(turn_speed,PWMleft1);
-            // setSpeed(0,PWMleft2);
+            setSpeed(turn_speed,PWMleft1);
+            setSpeed(0,PWMleft2);
         }
         else{
             setSpeed(turn_speed,PWMright1);
             setSpeed(0,PWMright2);
-            // setSpeed(turn_speed,PWMleft1);
-            // setSpeed(0,PWMleft2);
+            setSpeed(turn_speed,PWMleft1);
+            setSpeed(0,PWMleft2);
         }
     // }
 }
@@ -193,14 +193,14 @@ void motors_stop(int R_L_BOTH)
         setSpeed(0,PWMright2);
     }
     else if (R_L_BOTH == 1){
-        // setSpeed(0,PWMleft1);
-        // setSpeed(0,PWMleft2);
+        setSpeed(0,PWMleft1);
+        setSpeed(0,PWMleft2);
     }
     else if (R_L_BOTH == 2){
         setSpeed(0,PWMright1);
         setSpeed(0,PWMright2);
-        // setSpeed(0,PWMleft1);
-        // setSpeed(0,PWMleft2);
+        setSpeed(0,PWMleft1);
+        setSpeed(0,PWMleft2);
     }
 }
 //direction: true=forwad; false=backwards
@@ -209,14 +209,14 @@ void motors_straight(bool direction, int speed)
     if (direction){
         setSpeed(0,PWMright1);
         setSpeed(speed,PWMright2);
-        // setSpeed(speed,PWMleft1);
-        // setSpeed(0,PWMleft2);
+        setSpeed(speed,PWMleft1);
+        setSpeed(0,PWMleft2);
     }
     else{
         setSpeed(speed,PWMright1);
         setSpeed(0,PWMright2);
-        // setSpeed(0,PWMleft1);
-        // setSpeed(speed,PWMleft2);
+        setSpeed(0,PWMleft1);
+        setSpeed(speed,PWMleft2);
     }
 }
 
@@ -289,7 +289,7 @@ void GetColors()
   digitalWrite(s2,  HIGH);
   digitalWrite(s3, HIGH);  
   delay(100);
-  Green = pulseIn(out,  LOW);
+  Green = pulseIn(out,LOW);
   delay(100);
   int GreenMap=map(Green,27,172,255,0);
   Serial.print("RGB: ");     //output RGB
@@ -299,8 +299,6 @@ void GetColors()
   Serial.print(" ");
   Serial.print(BlueMap,DEC);
   Serial.print(" ");
-
-
   Serial.println("");
 }
 
@@ -316,9 +314,9 @@ void CheckifSolved(){
         motors_stop(2);
         middle=true;
     }
-    else{
-        motors_straight(true, 100);
-    }
+    // else{
+    //     motors_straight(true, 100);
+    // }
     if(Green > Red && Green > Blue){
         Serial.println(" - Green detected!");
     }
@@ -357,10 +355,10 @@ void MPU_setup() {
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
     // wait for ready
-    Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+    // Serial.println(F("\nSend any character to begin DMP programming and demo: "));
     while (Serial.available() && Serial.read()); // empty buffer
-    while (!Serial.available());                 // wait for data
-    while (Serial.available() && Serial.read()); // empty buffer again
+    // while (!Serial.available());                 // wait for data
+    // while (Serial.available() && Serial.read()); // empty buffer again
 
     // load and configure the DMP
     Serial.println(F("Initializing DMP..."));
