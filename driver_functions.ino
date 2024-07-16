@@ -4,7 +4,7 @@
 #endif
 #include "I2Cdev.h"
 #include "NewPing.h"
-
+#include "PinChangeInterrupt.h"
 
 //////////////////////ULTRASONIC VARS/////////////////////////////////////
 #define TRIGGER_PIN  17  // Ultrasonic Trigger pin
@@ -24,14 +24,18 @@ int encoderPin1 = 2; //Encoder Output 'A' must connected with intreput pin of ar
 int encoderPin2 = 3; //Encoder Otput 'B' must connected with intreput pin of arduino.
 volatile int lastEncoded = 0; // Here updated value of encoder store.
 volatile long encoderValue = 0; // Raw encoder value
+volatile int lastEncoded2 = 0; // Here updated value of encoder store.
+volatile long encoderValue2 = 0; // Raw encoder value
 const int PWMright1 = 5;
 const int PWMright2 = 6;
 const int PWMleft1 = 10;
 const int PWMleft2 = 11;
 
-PCICR | = B00000101;
-PCMSK | = B00000001;
-PCMSK2 | = B00000100;
+// PCICR | = B00000101;
+// PCMSK | = B00000001;
+// PCMSK2 | = B00000100;
+#define encoder2Pin1 7
+#define encoder2Pin2 8
 
 //////////////// MPU control/status vars///////////////////////////////////
 bool dmpReady = false;  // set true if DMP init was successful
@@ -43,7 +47,17 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 Quaternion q;           // [w, x, y, z]         quaternion container
 float euler[3];         // [psi, theta, phi]    Euler angle container
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////COLOR SENSOR/////////////////////////////////
+
+const int s0 = D4;        
+const int s1 = D5;  
+const int s2 = D6;  
+const int s3 = D7;  
+const int out = D10; 
+int  Red=0, Blue=0, Green=0; 
+bool middle = false;
+int possible_turns[4]={1,1,1,1}; //Array to keep track of possible turns. {front, right, left, rear}. 1 = turn possble. 0 = no turn possible
+
 
 void setup() {
 
@@ -56,6 +70,9 @@ void setup() {
   pinMode(encoderPin1, INPUT_PULLUP); 
   pinMode(encoderPin2, INPUT_PULLUP);
 
+  pinMode(encoder2Pin1, INPUT_PULLUP); 
+  pinMode(encoder2Pin2, INPUT_PULLUP);
+
   digitalWrite(encoderPin1, HIGH); //turn pullup resistor on
   digitalWrite(encoderPin2, HIGH); //turn pullup resistor on
 
@@ -63,6 +80,9 @@ void setup() {
   //on interrupt 0 (pin 2), or interrupt 1 (pin 3) 
   attachInterrupt(0, updateEncoder, CHANGE); 
   attachInterrupt(1, updateEncoder, CHANGE);
+
+  attachPCINT(digitalPintoPCINT(ecoder2Pin1),updateEncoder2, CHANGE);
+  attachPCINT(digitalPintoPCINT(ecoder2Pin2),updateEncoder2, CHANGE);
 
   MPU_setup();
 
@@ -106,8 +126,8 @@ delay(1000);
 
 ///////////////////////////////////////////////ENCODER FUNCTIONS////////////////////////////////////////////////////
 void updateEncoder(){
-  int MSB = digitalRead(encoderPin1); //MSB = most significant bit
-  int LSB = digitalRead(encoderPin2); //LSB = least significant bit
+  int MSB = digitalRead(ecoder2Pin1); //MSB = most significant bit
+  int LSB = digitalRead(ecoder2Pin2); //LSB = least significant bit
 
   int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
   int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
@@ -118,7 +138,19 @@ void updateEncoder(){
   lastEncoded = encoded; //store this value for next time
 
 }
+void updateEncoder2(){
+  int MSB = digitalRead(encoder2Pin1); //MSB = most significant bit
+  int LSB = digitalRead(encoder2Pin2); //LSB = least significant bit
 
+  int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
+  int sum  = (lastEncoded2 << 2) | encoded; //adding it to the previous encoded value
+
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue2 --;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue2 ++;
+
+  lastEncoded2 = encoded; //store this value for next time
+
+}
 
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 //speed in percentage
