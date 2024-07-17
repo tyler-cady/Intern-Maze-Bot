@@ -93,23 +93,16 @@ void setup() {
 
 void loop() {
   
-motors_stop(2);
-delay(1000);
-motors_straight(true,100);
-delay(1000);
-motors_stop(2);
-delay(1000);
-motors_straight(true,50);
-
-delay(5000);
 APDS_GetColors();
 delay(100);
 CheckifSolved();
 delay(100);
 read_ultra(3,true);
-delay(200);
+delay(100);
 MPU_getdata();
 readEncoders();
+int rotations_right = getRotations(true);
+int rotations_left = getRotations(false);
 delay(50);
 resetEncoders();
 } 
@@ -144,12 +137,13 @@ void updateEncoder2(){
 }
 
 //R_L: true right(1), false left(2)
-long getRotations(bool R_L){
+int getRotations(bool R_L){
   if(R_L){
-    return encoderValue/PPR;  //divide by Pulses per rotation to get total number of rotations recorded
+    return int(encoderValue/PPR);  //divide by Pulses per rotation to get total number of rotations recorded
   } else{
-    return encoderValue2/PPR; //divide by Pulses per rotation to get total number of rotations recorded
+    return int(encoderValue2/PPR); //divide by Pulses per rotation to get total number of rotations recorded
   }
+
 }
 //to be used after a turn is made to ensure proper count
 void resetEncoders(){
@@ -261,6 +255,11 @@ void read_ultra(int which, bool recurse){
         Serial.print("Distance front: "); 
         Serial.print(cm, DEC);  
         Serial.println(" ");
+        if( cm < 5.0 ){
+          motors_stop(2);
+        } else {
+          motors_straight(true,100);
+        }
     }
     if(which == 2){
         double right_cm = sonar[1].ping_cm(30) ;
@@ -322,12 +321,13 @@ void APDS_GetColors(){
 //determine color from rgb values and see if blue center is reached
 void CheckifSolved(){
     if (r > g && r > b ) {       
-      Serial.println("- RED detected!");      
+      Serial.println("- RED detected!");  
+      motors_straight(true,100);    
       // middle=false;
     }
     if(b > r && b > g){
         Serial.println(" - BLUE detected!");
-        // motors_stop(2);
+        motors_stop(2);
         // middle=true;
     }
     // else{
@@ -335,9 +335,11 @@ void CheckifSolved(){
     // }
     if(g > r && g > b){
         Serial.println(" - Green detected!");
+        motors_straight(true,100);
     }
     if( g < 12 && r < 12 && b < 12){  //adjust based on lighting under the robot
       Serial.println(" - BLACK detected!");
+      motors_straight(true,100);
 
     }
 }
