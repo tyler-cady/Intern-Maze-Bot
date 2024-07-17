@@ -8,26 +8,25 @@
 
 //////////////////////ULTRASONIC VARS/////////////////////////////////////
 #define TRIGGER_PIN  A3  // Ultrasonic Trigger pin
-#define ECHO_FRONT  16 // Ultrasonic Echo pin
-#define ECHO_RIGHT  15 // Ultrasonic Echo pin
-#define ECHO_LEFT  14 // Ultrasonic Echo pin
-
+#define ECHO_FRONT  A0 // Ultrasonic Echo pin
+#define ECHO_LEFT  A1 // Ultrasonic Echo pin
+#define ECHO_RIGHT  A2 // Ultrasonic Echo pin
 
 #define INTERRUPT_PIN 2  // use pin 2 on Arduino Uno & most boards. CHANGE LATER
 
 
 NewPing sonar[3] = {
-  NewPing(TRIGGER_PIN, ECHO_FRONT,200),
-  NewPing(TRIGGER_PIN, ECHO_RIGHT,200),
-  NewPing(TRIGGER_PIN, ECHO_LEFT,200)
+  NewPing(TRIGGER_PIN, ECHO_FRONT,30),
+  NewPing(TRIGGER_PIN, ECHO_RIGHT,30),
+  NewPing(TRIGGER_PIN, ECHO_LEFT,30)
 };
 
 /////////////////////ENCODER MOTOR VARS/////////////////////////////////////
 
-#define encoderPin1 2; //Encoder Output 'A' must connected with intreput pin of arduino.
-#define encoderPin2 3; //Encoder Otput 'B' must connected with intreput pin of arduino.
-#define encoder2Pin1 7;
-#define encoder2Pin2 8;
+#define encoderPin1 11 //Encoder Output 'A' must connected with intreput pin of arduino.
+#define encoderPin2 12 //Encoder Otput 'B' must connected with intreput pin of arduino.
+#define encoder2Pin1 7
+#define encoder2Pin2 8
 #define PPR 7
 
 volatile int lastEncoded = 0; // Here updated value of encoder store.
@@ -35,10 +34,10 @@ volatile long encoderValue = 0; // Raw encoder value
 volatile int lastEncoded2 = 0; // Here updated value of encoder store.
 volatile long encoderValue2 = 0; // Raw encoder value
 
-#define PWMright1 5;
-#define PWMright2 6;
-#define PWMleft1 9;
-#define PWMleft2 10;
+#define PWMright1 5
+#define PWMright2 6
+#define PWMleft1 9
+#define PWMleft2 10
 
 
 //////////////// MPU control/status vars///////////////////////////////////
@@ -75,14 +74,15 @@ void setup() {
   pinMode(encoder2Pin1, INPUT_PULLUP); 
   pinMode(encoder2Pin2, INPUT_PULLUP);
 
-  digitalWrite(encoderPin1, HIGH); //turn pullup resistor on
-  digitalWrite(encoderPin2, HIGH); //turn pullup resistor on
+  // digitalWrite(encoderPin1, HIGH); //turn pullup resistor on
+  // digitalWrite(encoderPin2, HIGH); //turn pullup resistor on
 
   //call updateEncoder() when any high/low changed seen
   //on interrupt 0 (pin 2), or interrupt 1 (pin 3) 
-  attachInterrupt(0, updateEncoder, CHANGE); 
-  attachInterrupt(1, updateEncoder, CHANGE);
-
+  // attachInterrupt(0, updateEncoder, CHANGE); 
+  // attachInterrupt(1, updateEncoder, CHANGE);
+  attachPCINT(digitalPinToPCINT(encoderPin1),updateEncoder, CHANGE);
+  attachPCINT(digitalPinToPCINT(encoderPin2),updateEncoder, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin1),updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2),updateEncoder2, CHANGE);
 
@@ -93,35 +93,39 @@ void setup() {
 
 void loop() {
   
-motors_stop(true,100);
+motors_stop(2);
 delay(1000);
 motors_straight(true,100);
 delay(1000);
-motors_stop(true,100);
+motors_stop(2);
 delay(1000);
 motors_straight(true,50);
 
 delay(5000);
 APDS_GetColors();
+delay(100);
 CheckifSolved();
-delay(500);
+delay(100);
 read_ultra(3,true);
 delay(200);
-
+MPU_getdata();
+readEncoders();
+delay(50);
+resetEncoders();
 } 
 
 
 
 ///////////////////////////////////////////////ENCODER FUNCTIONS////////////////////////////////////////////////////
 void updateEncoder(){
-  int MSB = digitalRead(encoder2Pin1); //MSB = most significant bit
-  int LSB = digitalRead(encoder2Pin2); //LSB = least significant bit
+  int MSB = digitalRead(encoderPin1); //MSB = most significant bit
+  int LSB = digitalRead(encoderPin2); //LSB = least significant bit
 
   int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
   int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
 
-  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue --;
-  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue ++;
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue ++;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue --;
 
   lastEncoded = encoded; //store this value for next time
 
@@ -152,7 +156,14 @@ void resetEncoders(){
   encoderValue=0;
   encoderValue2=0;
 }
-
+void readEncoders(){
+ Serial.print("Encoder1: ");
+ Serial.print(encoderValue, DEC);
+ Serial.println(" ");
+ Serial.print("Encoder2: ");
+ Serial.print(encoderValue2, DEC);
+ Serial.println(" "); 
+}
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 //speed in percentage of duty cycle. i.e speed = 50 => 50% duty cycle
 void setSpeed(float speed, int pin){
@@ -179,7 +190,7 @@ void Turn(bool R_L, int degree, int turn_speed)
             setSpeed(0,PWMleft2);
         }
     // }
-    motors_stop();    //stop turning 
+    motors_stop(2);    //stop turning 
     resetEncoders();  //reset encoders to count for next turn
 }
 //R_L_BOTH: 0=right motor only; 1=left motor only; 2=both motors
@@ -220,24 +231,24 @@ void motors_straight(bool direction, int speed)
 
 ///////////////////////////////////////////////////////////Ultrasonic/////////////////////////////////////////////////
 
-void updatePossibleTurns()
-{
-    if (sonar[0].ping_cm() < 2){
-        Serial.println("Wall front");
-        possible_turns[0]=0;
-    }
-    else{
-        Serial.println("No wall front");
-    }
-    if (sonar[1].ping_cm()  < 2){
-        Serial.println("Wall Right");
-        possible_turns[1]=0;
-    }
-    if (sonar[2].ping_cm()  < 2){
-        Serial.println("Wall left");
-        possible_turns[2]=0;
-    }
-}
+// void updatePossibleTurns()
+// {
+//     if (sonar[0].ping_cm() < 2){
+//         Serial.println("Wall front");
+//         possible_turns[0]=0;
+//     }
+//     else{
+//         Serial.println("No wall front");
+//     }
+//     if (sonar[1].ping_cm()  < 2){
+//         Serial.println("Wall Right");
+//         possible_turns[1]=0;
+//     }
+//     if (sonar[2].ping_cm()  < 2){
+//         Serial.println("Wall left");
+//         possible_turns[2]=0;
+//     }
+// }
 //prints each sensor's distance depending. which => 0 = none; 1 = front sensor; 2 =  right sensor; 3 = left sensor; recurse=> true = which downto 0
 void read_ultra(int which, bool recurse){
     double cm;
@@ -246,24 +257,25 @@ void read_ultra(int which, bool recurse){
         return;
     }
     if(which == 1){
-        cm = sonar[0].ping_cm() ;
+        cm = sonar[0].ping_cm(30) ;
         Serial.print("Distance front: "); 
         Serial.print(cm, DEC);  
         Serial.println(" ");
     }
     if(which == 2){
-        cm = sonar[1].ping_cm() ;
+        double right_cm = sonar[1].ping_cm(30) ;
         Serial.print("Distance right: ");
-        Serial.print(cm, DEC);
+        Serial.print(right_cm, DEC);
         Serial.println(" ");
     }
     if(which == 3){
-        cm = sonar[2].ping_cm() ;
+        cm = sonar[2].ping_cm(30) ;
         Serial.print("Distance left: ");
         Serial.print(cm, DEC);
         Serial.println(" ");
     }
     if(recurse){
+      delay(100);
         which--;
         read_ultra(which,recurse);
     }
@@ -271,10 +283,10 @@ void read_ultra(int which, bool recurse){
 //////////////////////////////COLOR SENSOR FUNCTIONS/////////////////////////////////////////
 
 void APDS_setup(){
-    if(!apds.begin()){
+  if(!apds.begin()){
     Serial.println("failed to initialize device! Please check your wiring.");
   }
-  else Serial.println("Device initialized!");
+  else Serial.println("APDS initialized!");
 
   //enable color sensign mode
   apds.enableColor(true);
@@ -367,7 +379,7 @@ float MPU_getZ(){
 void MPU_setup() {
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
+        Wire.begin();   
         Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
@@ -423,10 +435,10 @@ void MPU_setup() {
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+        // Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+        // Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        // Serial.println(F(")..."));
+        // attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
