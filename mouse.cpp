@@ -1,232 +1,177 @@
-#include "Mouse.h"
-#include <Wire.h>
+#include "mouse.h"
 
-Mouse::Mouse() {
-    Wire.begin();
-    mpu.initialize();
-    
-    position[0] = 0;
-    position[1] = 0;
-    init_maze();
+Mouse::Mouse() {}
+
+void Mouse::setup() {
+    pinMode(PWMright1, OUTPUT); 
+    pinMode(PWMright2, OUTPUT); 
+    pinMode(PWMleft1, OUTPUT); 
+    pinMode(PWMleft2, OUTPUT);
+    Serial.begin(9600);
+
+    pinMode(encoderPin1, INPUT_PULLUP); 
+    pinMode(encoderPin2, INPUT_PULLUP);
+    pinMode(encoder2Pin1, INPUT_PULLUP); 
+    pinMode(encoder2Pin2, INPUT_PULLUP);
+
+    attachPCINT(digitalPinToPCINT(encoderPin1), updateEncoder, CHANGE);
+    attachPCINT(digitalPinToPCINT(encoderPin2), updateEncoder, CHANGE);
+    attachPCINT(digitalPinToPCINT(encoder2Pin1), updateEncoder2, CHANGE);
+    attachPCINT(digitalPinToPCINT(encoder2Pin2), updateEncoder2, CHANGE);
+
+    MPU_setup();
+    APDS_setup();
 }
 
-void Mouse::turn(float degree) {
-    // Implement turning logic using motors and MPU6050
+void Mouse::loop() {
+    APDS_GetColors();
+    delay(100);
+    CheckifSolved();
+    delay(100);
+    read_ultra(3, true);
+    delay(100);
+    MPU_getdata();
+    readEncoders();
+    int rotations_right = getRotations(true);
+    int rotations_left = getRotations(false);
+    delay(50);
+    resetEncoders();
 }
 
-void Mouse::fast_turn(float degree) {
-    // Implement fast turning logic using motors and MPU6050
+void Mouse::updateEncoder() {
+    int MSB = digitalRead(encoderPin1);
+    int LSB = digitalRead(encoderPin2);
+    int encoded = (MSB << 1) | LSB;
+    int sum  = (lastEncoded << 2) | encoded;
+
+    if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue++;
+    if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue--;
+
+    lastEncoded = encoded;
 }
 
-void Mouse::dash(float distance) {
-    // Implement dashing logic using motors and encoders
+void Mouse::updateEncoder2() {
+    int MSB = digitalRead(encoder2Pin1);
+    int LSB = digitalRead(encoder2Pin2);
+    int encoded = (MSB << 1) | LSB;
+    int sum  = (lastEncoded2 << 2) | encoded;
+
+    if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue2--;
+    if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue2++;
+
+    lastEncoded2 = encoded;
 }
 
-void Mouse::diagonal_dash() {
-    // Implement diagonal dashing logic
-    float speed = 150; // Example speed
-    // Set motor speeds for diagonal dash
-    // Example: setMotorSpeeds(leftSpeed, rightSpeed);
-}
-
-void Mouse::solve_maze() {
-    flood_fill();
-    // Pathfinding to reach the goal
-    while (!is_goal(position[0], position[1])) {
-        int min_value = 1000;
-        int next_x = position[0];
-        int next_y = position[1];
-        
-        // Check all four directions and choose the cell with the smallest flood value
-        if (position[1] > 0 && flood[position[1] - 1][position[0]] < min_value) { // North
-            min_value = flood[position[1] - 1][position[0]];
-            next_x = position[0];
-            next_y = position[1] - 1;
-        }
-        if (position[1] < 8 && flood[position[1] + 1][position[0]] < min_value) { // South
-            min_value = flood[position[1] + 1][position[0]];
-            next_x = position[0];
-            next_y = position[1] + 1;
-        }
-        if (position[0] > 0 && flood[position[1]][position[0] - 1] < min_value) { // West
-            min_value = flood[position[1]][position[0] - 1];
-            next_x = position[0] - 1;
-            next_y = position[1];
-        }
-        if (position[0] < 8 && flood[position[1]][position[0] + 1] < min_value) { // East
-            min_value = flood[position[1]][position[0] + 1];
-            next_x = position[0] + 1;
-            next_y = position[1];
-        }
-        
-        move_to_cell(next_x, next_y);
-    }
-    
-    // Drive back to start using a different route
-    position[0] = 0;
-    position[1] = 0;
-    flood_fill();
-    while (position[0] != 0 || position[1] != 0) {
-        int min_value = 1000;
-        int next_x = position[0];
-        int next_y = position[1];
-        
-        // Check all four directions and choose the cell with the smallest flood value
-        if (position[1] > 0 && flood[position[1] - 1][position[0]] < min_value) { // North
-            min_value = flood[position[1] - 1][position[0]];
-            next_x = position[0];
-            next_y = position[1] - 1;
-        }
-        if (position[1] < 8 && flood[position[1] + 1][position[0]] < min_value) { // South
-            min_value = flood[position[1] + 1][position[0]];
-            next_x = position[0];
-            next_y = position[1] + 1;
-        }
-        if (position[0] > 0 && flood[position[1]][position[0] - 1] < min_value) { // West
-            min_value = flood[position[1]][position[0] - 1];
-            next_x = position[0] - 1;
-            next_y = position[1];
-        }
-        if (position[0] < 8 && flood[position[1]][position[0] + 1] < min_value) { // East
-            min_value = flood[position[1]][position[0] + 1];
-            next_x = position[0] + 1;
-            next_y = position[1];
-        }
-        
-        move_to_cell(next_x, next_y);
+int Mouse::getRotations(bool R_L) {
+    if (R_L) {
+        return int(encoderValue / PPR);
+    } else {
+        return int(encoderValue2 / PPR);
     }
 }
 
-void Mouse::speedrun() {
-    while (true) {
-        // Check if a diagonal move is possible
-        if (is_diagonalable()) {
-            diagonal_dash();
-        } else {
-            // Use regular dash or turns
-            dash(10); // Example distance
-        }
+void Mouse::resetEncoders() {
+    encoderValue = 0;
+    encoderValue2 = 0;
+}
 
-        // Update position after movement
-        update_position();
-        
-        // Add logic to break the loop when maze is solved or goal is reached
+void Mouse::readEncoders() {
+    Serial.print("Encoder1: ");
+    Serial.print(encoderValue, DEC);
+    Serial.println(" ");
+    Serial.print("Encoder2: ");
+    Serial.print(encoderValue2, DEC);
+    Serial.println(" "); 
+}
+
+void Mouse::setSpeed(float speed, int pin) {
+    float percent = float(speed / 100);
+    float dutycycle = float(255 * percent);
+    analogWrite(pin, dutycycle);
+}
+
+void Mouse::Turn(bool R_L, int degree, int turn_speed) {
+    if (R_L) {
+        setSpeed(turn_speed, PWMright1);
+        setSpeed(0, PWMright2);
+        setSpeed(turn_speed, PWMleft1);
+        setSpeed(0, PWMleft2);
+    } else {
+        setSpeed(turn_speed, PWMright1);
+        setSpeed(0, PWMright2);
+        setSpeed(turn_speed, PWMleft1);
+        setSpeed(0, PWMleft2);
+    }
+    motors_stop(2);
+    resetEncoders();
+}
+
+void Mouse::motors_stop(int R_L_BOTH) {
+    if (R_L_BOTH == 0) {
+        setSpeed(0, PWMright1);
+        setSpeed(0, PWMright2);
+    } else if (R_L_BOTH == 1) {
+        setSpeed(0, PWMleft1);
+        setSpeed(0, PWMleft2);
+    } else if (R_L_BOTH == 2) {
+        setSpeed(0, PWMright1);
+        setSpeed(0, PWMright2);
+        setSpeed(0, PWMleft1);
+        setSpeed(0, PWMleft2);
     }
 }
 
-int* Mouse::get_location() {
-    return position;
+void Mouse::motors_straight(bool direction, int speed) {
+    if (direction) {
+        setSpeed(0, PWMright1);
+        setSpeed(speed, PWMright2);
+        setSpeed(speed, PWMleft1);
+        setSpeed(0, PWMleft2);
+    } else {
+        setSpeed(speed, PWMright1);
+        setSpeed(0, PWMright2);
+        setSpeed(0, PWMleft1);
+        setSpeed(speed, PWMleft2);
+    }
 }
 
-int* Mouse::get_valid_turns(int px, int nx, int py, int ny) {
-    static int valid_turns[4] = {0}; // {front, left, right, back}
-    // Implement logic to determine valid turns based on sensor readings and current position
-    return valid_turns;
+void Mouse::read_ultra(int which, bool recurse) {
+    if (which == 0) {
+        return;
+    }
+    if (which == 1) {
+        cm[0] = sonar[0].ping_cm(30);
+        Serial.print("Distance left: ");
+        Serial.print(cm[0], DEC);
+        Serial.println(" ");
+    }
+    if (which == 2) {
+        cm[1] = sonar[1].ping_cm(30);
+        Serial.print("Distance front: ");
+        Serial.print(cm[1], DEC);
+        Serial.println(" ");
+    }
+    if (which == 3) {
+        cm[2] = sonar[2].ping_cm(30);
+        Serial.print("Distance right: ");
+        Serial.print(cm[2], DEC);
+        Serial.println(" ");
+    }
+    if (recurse) {
+        delay(100);
+        which--;
+        read_ultra(which, recurse);
+    }
 }
 
-float Mouse::get_distance(int sensor) {
-    float distance = 0.0;
-    switch (sensor) {
-        case 0: // Front sensor
-            // Read from FS
-            break;
-        case 1: // Right sensor
-            // Read from RS
-            break;
-        case 2: // Left sensor
-            // Read from LS
-            break;
-        case 3: // Right Diagonal sensor
-            // Read from RDS
-            break;
-        case 4: // Left Diagonal sensor
-            // Read from LDS
-            break;
-        default:
-            // Handle invalid sensor input
-            break;
-    }
-    return distance;
-}
-
-void Mouse::flood_fill() {
-    // Initialize flood values
-    for (int y = 0; y < 9; ++y) {
-        for (int x = 0; x < 9; ++x) {
-            if (is_goal(x, y)) {
-                flood[y][x] = 0;
-            } else {
-                flood[y][x] = 1000;
-            }
-        }
-    }
-    
-    // Use a queue to perform the flood fill
-    queue<pair<int, int>> q;
-    for (int y = 0; y < 9; ++y) {
-        for (int x = 0; x < 9; ++x) {
-            if (is_goal(x, y)) {
-                q.push({x, y});
-            }
-        }
-    }
-
-    while (!q.empty()) {
-        int x = q.front().first;
-        int y = q.front().second;
-        q.pop();
-
-        // Update neighbors
-        if (y > 0 && flood[y - 1][x] > flood[y][x] + 1) { // North
-            flood[y - 1][x] = flood[y][x] + 1;
-            q.push({x, y - 1});
-        }
-        if (y < 8 && flood[y + 1][x] > flood[y][x] + 1) { // South
-            flood[y + 1][x] = flood[y][x] + 1;
-            q.push({x, y + 1});
-        }
-        if (x > 0 && flood[y][x - 1] > flood[y][x] + 1) { // West
-            flood[y][x - 1] = flood[y][x] + 1;
-            q.push({x - 1, y});
-        }
-        if (x < 8 && flood[y][x + 1] > flood[y][x] + 1) { // East
-            flood[y][x + 1] = flood[y][x] + 1;
-            q.push({x + 1, y});
+void Mouse::checkWalls() {
+    for(int i = 0; i < 3; i++) {
+        if(cm[i] < 10) {
+            walls[i] = true;
         }
     }
 }
 
-void Mouse::init_maze() {
-    for (int y = 0; y < 9; ++y) {
-        for (int x = 0; x < 9; ++x) {
-            maze[y][x] = 0; // Initialize the maze as empty
-        }
-    }
-    // Add walls to the maze representation if needed
-}
-
-bool Mouse::is_goal(int x, int y) {
-    return (x == 4 && y == 3) || (x == 4 && y == 4) || (x == 5 && y == 3) || (x == 5 && y == 4);
-}
-
-void Mouse::move_to_cell(int x, int y) {
-    // Move the mouse to the specified cell (x, y) with appropriate turning and dashing
-    // Update the current position
-    position[0] = x;
-    position[1] = y;
-}
-
-void Mouse::update_position() {
-    // Update the mouse's current position using encoders or other sensors
-}
-
-void Mouse::update_sensors() {
-    // Update sensor readings
-}
-
-bool Mouse::is_diagonalable() {
-    // Implement logic to determine if a diagonal path is possible
-    // Check the flood fill values and the presence of walls
-    return false; // Placeholder return value
-}
-propagate the flood values tEach cell updates its neighbors' values if the current cell’s value plus one is less than the neighbor’s value
+void Mouse::APDS_setup() {
+    if (!apds.begin()) {
+        Serial.println("failed to initialize device! Please check
