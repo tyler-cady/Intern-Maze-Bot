@@ -9,6 +9,7 @@
 #include "PinChangeInterrupt.h"
 #include <tcs3200.h>
 #include "Adafruit_APDS9960.h"
+#include "PID_v1.h"
 
 
 
@@ -43,6 +44,12 @@ class Mouse {
         #define PWMleft1 9
         #define PWMleft2 10
 
+        /* PID  */
+        bool isTurn; // false for straight, true for turning 
+        double Input, Output, Setpoint;
+        PID myPID; 
+
+
         /* MPU control & status vars */
         MPU6050 mpu;
         bool dmpReady = false;
@@ -62,6 +69,7 @@ class Mouse {
         /* Functions */
         void updateEncoder();
         void updateEncoder2();
+        void updateEncoders(); // PID version
         int getRotations(bool R_L);
         void resetEncoders();
         void readEncoders();
@@ -69,16 +77,26 @@ class Mouse {
         void Turn(bool R_L, int degree, int turn_speed);
         void motors_stop(int R_L_BOTH);
         void motors_straight(bool direction, int speed);
-        void read_ultra(int which, bool recurse);
+        void read_ultra(int which);
         void checkWalls();
         void APDS_setup();
-        void APDS_GetColors();
         void CheckifSolved();
         void MPU_getdata();
         float MPU_getX();
         float MPU_getY();
         float MPU_getZ();
         void MPU_setup();
+
+        /* Constructors */
+        
+        Mouse::Mouse() 
+            : myPID(&Input, &Output, &Setpoint, 2.0, 5.0, 1.0, DIRECT), // Initialize PID with parameters
+            encoderValue(0), encoderValue2(0), lastEncoded(0), lastEncoded2(0),
+            PPR(400), mode(0), turnDirection(true), turnDegree(0)
+        {
+            Setpoint = 0; // Set initial setpoint for PID
+            myPID.SetMode(AUTOMATIC); // Set PID to automatic mode
+        }
 };
 
 #endif // MOUSE_H
