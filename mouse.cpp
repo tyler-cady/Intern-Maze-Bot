@@ -173,5 +173,75 @@ void Mouse::checkWalls() {
 }
 
 void Mouse::APDS_setup() {
-    if (!apds.begin()) {
-        Serial.println("failed to initialize device! Please check
+    if (!apds.begin()) { 
+        Serial.println("failed to initialize device! Please check 
+ your wiring.");
+    } else {
+        Serial.println("Device initialized!");
+    }
+    apds.enableColor(true);
+}
+
+void Mouse::APDS_GetColors() {
+    apds.getColorData(&r, &g, &b, &c);
+    Serial.print("red: ");
+    Serial.print(r);
+    Serial.print(" green: ");
+    Serial.print(g);
+    Serial.print(" blue: ");
+    Serial.print(b);
+    Serial.print(" clear: ");
+    Serial.println(c);
+}
+
+void Mouse::CheckifSolved() {
+    if ((r > 100) && (g > 100) && (b > 100) && (c > 500)) {
+        motors_stop(2);
+    }
+}
+
+void Mouse::MPU_getdata() {
+    if (!dmpReady) return;
+    while (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetEuler(euler, &q);
+        Serial.print("X: ");
+        Serial.print(MPU_getX());
+        Serial.print("\tY: ");
+        Serial.print(MPU_getY());
+        Serial.print("\tZ: ");
+        Serial.print(MPU_getZ());
+        Serial.println();
+    }
+}
+
+float Mouse::MPU_getX() {
+    return euler[0] * 180/M_PI;
+}
+
+float Mouse::MPU_getY() {
+    return euler[1] * 180/M_PI;
+}
+
+float Mouse::MPU_getZ() {
+    return euler[2] * 180/M_PI;
+}
+
+void Mouse::MPU_setup() {
+    Wire.begin();
+    Wire.setClock(400000);
+    mpu.initialize();
+    pinMode(INTERRUPT_PIN, INPUT);
+    devStatus = mpu.dmpInitialize();
+    if (devStatus == 0) {
+        mpu.setDMPEnabled(true);
+        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+        mpuIntStatus = mpu.getIntStatus();
+        dmpReady = true;
+        packetSize = mpu.dmpGetFIFOPacketSize();
+    } else {
+        Serial.print(F("DMP Initialization failed (code "));
+        Serial.print(devStatus);
+        Serial.println(F(")"));
+    }
+}
