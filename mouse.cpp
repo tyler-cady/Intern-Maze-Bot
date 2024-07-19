@@ -28,7 +28,7 @@ void Mouse::loop() {
     delay(100);
     CheckifSolved();
     delay(100);
-    read_ultra(3, true);
+    read_ultra(3);
     delay(100);
     MPU_getdata();
     readEncoders();
@@ -63,11 +63,7 @@ void Mouse::updateEncoder2() {
 }
 
 int Mouse::getRotations(bool R_L) {
-    if (R_L) {
-        return int(encoderValue / PPR);
-    } else {
-        return int(encoderValue2 / PPR);
-    }
+    return (R_L ? encoderValue : encoderValue2) / PPR;
 }
 
 void Mouse::resetEncoders() {
@@ -85,8 +81,7 @@ void Mouse::readEncoders() {
 }
 
 void Mouse::setSpeed(float speed, int pin) {
-    float percent = float(speed / 100);
-    float dutycycle = float(255 * percent);
+    int dutycycle = (int)(255 * (speed / 100));
     analogWrite(pin, dutycycle);
 }
 
@@ -113,7 +108,7 @@ void Mouse::motors_stop(int R_L_BOTH) {
     } else if (R_L_BOTH == 1) {
         setSpeed(0, PWMleft1);
         setSpeed(0, PWMleft2);
-    } else if (R_L_BOTH == 2) {
+    } else {
         setSpeed(0, PWMright1);
         setSpeed(0, PWMright2);
         setSpeed(0, PWMleft1);
@@ -135,32 +130,22 @@ void Mouse::motors_straight(bool direction, int speed) {
     }
 }
 
-void Mouse::read_ultra(int which, bool recurse) {
-    if (which == 0) {
-        return;
-    }
-    if (which == 1) {
-        cm[0] = sonar[0].ping_cm(30);
-        Serial.print("Distance left: ");
-        Serial.print(cm[0], DEC);
+void Mouse::read_ultra(int which) {
+    for (int i = 1; i <= which; ++i) {
+        cm[i - 1] = sonar[i - 1].ping_cm(30);
+        switch(i) {
+            case 1:
+                Serial.print("Distance left: ");
+                break;
+            case 2:
+                Serial.print("Distance front: ");
+                break;
+            case 3:
+                Serial.print("Distance right: ");
+                break;
+        }
+        Serial.print(cm[i - 1], DEC);
         Serial.println(" ");
-    }
-    if (which == 2) {
-        cm[1] = sonar[1].ping_cm(30);
-        Serial.print("Distance front: ");
-        Serial.print(cm[1], DEC);
-        Serial.println(" ");
-    }
-    if (which == 3) {
-        cm[2] = sonar[2].ping_cm(30);
-        Serial.print("Distance right: ");
-        Serial.print(cm[2], DEC);
-        Serial.println(" ");
-    }
-    if (recurse) {
-        delay(100);
-        which--;
-        read_ultra(which, recurse);
     }
 }
 
@@ -174,8 +159,7 @@ void Mouse::checkWalls() {
 
 void Mouse::APDS_setup() {
     if (!apds.begin()) { 
-        Serial.println("failed to initialize device! Please check 
- your wiring.");
+        Serial.println("failed to initialize device! Please check your wiring.");
     } else {
         Serial.println("Device initialized!");
     }
@@ -238,10 +222,4 @@ void Mouse::MPU_setup() {
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
         dmpReady = true;
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    } else {
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-    }
-}
+        packetSize =
