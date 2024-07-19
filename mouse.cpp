@@ -23,21 +23,6 @@ void Mouse::setup() {
     APDS_setup();
 }
 
-void Mouse::loop() {
-    APDS_GetColors();
-    delay(100);
-    CheckifSolved();
-    delay(100);
-    read_ultra(3);
-    delay(100);
-    MPU_getdata();
-    readEncoders();
-    int rotations_right = getRotations(true);
-    int rotations_left = getRotations(false);
-    delay(50);
-    resetEncoders();
-}
-
 void Mouse::updateEncoder() {
     int MSB = digitalRead(encoderPin1);
     int LSB = digitalRead(encoderPin2);
@@ -62,8 +47,61 @@ void Mouse::updateEncoder2() {
     lastEncoded2 = encoded;
 }
 
+void Mouse::updateEncoders() { /* Trying hard ... */
+    // Read encoder 1
+    int MSB1 = digitalRead(encoderPin1);
+    int LSB1 = digitalRead(encoderPin2);
+    int encoded1 = (MSB1 << 1) | LSB1;
+    int sum1  = (lastEncoded << 2) | encoded1;
+
+    if(sum1 == 0b1101 || sum1 == 0b0100 || sum1 == 0b0010 || sum1 == 0b1011) encoderValue++;
+    if(sum1 == 0b1110 || sum1 == 0b0111 || sum1 == 0b0001 || sum1 == 0b1000) encoderValue--;
+
+    lastEncoded = encoded1;
+
+    // Read encoder 2
+    int MSB2 = digitalRead(encoder2Pin1);
+    int LSB2 = digitalRead(encoder2Pin2);
+    int encoded2 = (MSB2 << 1) | LSB2;
+    int sum2  = (lastEncoded2 << 2) | encoded2;
+
+    if(sum2 == 0b1101 || sum2 == 0b0100 || sum2 == 0b0010 || sum2 == 0b1011) encoderValue2--;
+    if(sum2 == 0b1110 || sum2 == 0b0111 || sum2 == 0b0001 || sum2 == 0b1000) encoderValue2++;
+
+    lastEncoded2 = encoded2;
+
+    if (isTurn == false) { // Straight motion
+        Input = (encoderValue - encoderValue2) / 2.0;  // Average encoder difference
+        Setpoint = 0;  // Target is equal speed for both motors
+        myPID.Compute();
+        setSpeed(Output, PWMright1);
+        setSpeed(Output, PWMright2);
+        setSpeed(Output, PWMleft1);
+        setSpeed(Output, PWMleft2);
+    } else if (isTurn == true) { // Turning 
+        Input = (encoderValue + encoderValue2) / 2.0;  // Average encoder sum for turning
+        Setpoint = degree * (PPR / 360.0); // Convert degree to encoder count
+        myPID.Compute();
+        if (R_L) { // Right turn
+            setSpeed(Output, PWMright1);
+            setSpeed(0, PWMright2);
+            setSpeed(0, PWMleft1);
+            setSpeed(Output, PWMleft2);
+        } else { // Left turn
+            setSpeed(0, PWMright1);
+            setSpeed(Output, PWMright2);
+            setSpeed(Output, PWMleft1);
+            setSpeed(0, PWMleft2);
+        }
+    }
+}
+
 int Mouse::getRotations(bool R_L) {
-    return (R_L ? encoderValue : encoderValue2) / PPR;
+    if (R_L) {
+        return int(encoderValue / PPR);
+    } else {
+        return int(encoderValue2 / PPR);
+    }
 }
 
 void Mouse::resetEncoders() {
@@ -81,11 +119,13 @@ void Mouse::readEncoders() {
 }
 
 void Mouse::setSpeed(float speed, int pin) {
-    int dutycycle = (int)(255 * (speed / 100));
+    float percent = float(speed / 100);
+    float dutycycle = float(255 * percent);
     analogWrite(pin, dutycycle);
 }
 
 void Mouse::Turn(bool R_L, int degree, int turn_speed) {
+    isTurn = true;
     if (R_L) {
         setSpeed(turn_speed, PWMright1);
         setSpeed(0, PWMright2);
@@ -108,7 +148,7 @@ void Mouse::motors_stop(int R_L_BOTH) {
     } else if (R_L_BOTH == 1) {
         setSpeed(0, PWMleft1);
         setSpeed(0, PWMleft2);
-    } else {
+    } else if (R_L_BOTH == 2) {
         setSpeed(0, PWMright1);
         setSpeed(0, PWMright2);
         setSpeed(0, PWMleft1);
@@ -117,6 +157,7 @@ void Mouse::motors_stop(int R_L_BOTH) {
 }
 
 void Mouse::motors_straight(bool direction, int speed) {
+    isTurn = false;
     if (direction) {
         setSpeed(0, PWMright1);
         setSpeed(speed, PWMright2);
@@ -130,23 +171,13 @@ void Mouse::motors_straight(bool direction, int speed) {
     }
 }
 
-void Mouse::read_ultra(int which) {
-    for (int i = 1; i <= which; ++i) {
-        cm[i - 1] = sonar[i - 1].ping_cm(30);
-        switch(i) {
-            case 1:
-                Serial.print("Distance left: ");
-                break;
-            case 2:
-                Serial.print("Distance front: ");
-                break;
-            case 3:
-                Serial.print("Distance right: ");
-                break;
-        }
-        Serial.print(cm[i - 1], DEC);
-        Serial.println(" ");
+float Mouse::read_ultra(int which) {
+    float distance = -1; // Default to -1 if invalid which parameter
+    if (which >= 1 && which <= 3) {
+        distance = sonar[which - 1].ping_cm(30);
+        cm[which - 1] = distance;
     }
+    return distance;
 }
 
 void Mouse::checkWalls() {
@@ -157,7 +188,7 @@ void Mouse::checkWalls() {
     }
 }
 
-void Mouse::APDS_setup() {
+void Mouse::APDS_setup() { // Move to setup loop? 
     if (!apds.begin()) { 
         Serial.println("failed to initialize device! Please check your wiring.");
     } else {
@@ -166,19 +197,8 @@ void Mouse::APDS_setup() {
     apds.enableColor(true);
 }
 
-void Mouse::APDS_GetColors() {
-    apds.getColorData(&r, &g, &b, &c);
-    Serial.print("red: ");
-    Serial.print(r);
-    Serial.print(" green: ");
-    Serial.print(g);
-    Serial.print(" blue: ");
-    Serial.print(b);
-    Serial.print(" clear: ");
-    Serial.println(c);
-}
-
 void Mouse::CheckifSolved() {
+    apds.getColorData(&r, &g, &b, &c);
     if ((r > 100) && (g > 100) && (b > 100) && (c > 500)) {
         motors_stop(2);
     }
@@ -222,4 +242,10 @@ void Mouse::MPU_setup() {
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
         dmpReady = true;
-        packetSize =
+        packetSize = mpu.dmpGetFIFOPacketSize();
+    } else {
+        Serial.print(F("DMP Initialization failed (code "));
+        Serial.print(devStatus);
+        Serial.println(F(")"));
+    }
+}
