@@ -81,6 +81,7 @@ class Mouse {
         void checkWalls();
         void APDS_setup();
         void CheckifSolved();
+        void MPU_calibrate();
         void MPU_getdata();
         float MPU_getX();
         float MPU_getY();
