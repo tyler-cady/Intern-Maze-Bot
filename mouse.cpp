@@ -203,6 +203,62 @@ void Mouse::CheckifSolved() {
         motors_stop(2);
     }
 }
+void Mouse::MPU_calibrate() {
+    int numReadings = 100;
+    float xSum[4] = {0, 0, 0, 0};
+    float ySum[4] = {0, 0, 0, 0};
+    float zSum[4] = {0, 0, 0, 0};
+    int orientationIndex = 0;
+    
+    Serial.println("Starting MPU calibration. Please hold the bot steady in each orientation as prompted.");
+
+    const char* orientations[] = {
+        "forward",
+        "90 degrees right",
+        "90 degrees left",
+        "backwards"
+    };
+
+    for (int orientation = 0; orientation < 4; orientation++) {
+        Serial.print("Place the bot ");
+        Serial.print(orientations[orientation]);
+        Serial.println(" White on color sensor to continue.");
+        while (!Serial.available()) {
+            apds.getColorData(&r, &g, &b, &c);
+            if ((r > 200) && (g > 200) && (b > 200) && (c > 500)) {
+                
+            }
+        }
+        
+        Serial.read(); // Clear the input buffer
+
+        // Collect multiple readings for better accuracy
+        for (int i = 0; i < numReadings; i++) {
+            if (!dmpReady) return;
+
+            // Check if new FIFO packet is ready
+            if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+                mpu.dmpGetQuaternion(&q, fifoBuffer);
+                mpu.dmpGetEuler(euler, &q);
+
+                xSum[orientation] += euler[0];
+                ySum[orientation] += euler[1];
+                zSum[orientation] += euler[2];
+            }
+            delay(20); // Delay to allow for stable readings
+        }
+    }
+
+    // Calculate the average offsets
+    xOffset = (xSum[0] + xSum[1] + xSum[2] + xSum[3]) / (4 * numReadings);
+    yOffset = (ySum[0] + ySum[1] + ySum[2] + ySum[3]) / (4 * numReadings);
+    zOffset = (zSum[0] + zSum[1] + zSum[2] + zSum[3]) / (4 * numReadings);
+
+    Serial.println("Calibration complete.");
+    Serial.print("xOffset: "); Serial.println(xOffset);
+    Serial.print("yOffset: "); Serial.println(yOffset);
+    Serial.print("zOffset: "); Serial.println(zOffset);
+}
 
 void Mouse::MPU_getdata() {
     if (!dmpReady) return;
@@ -220,15 +276,15 @@ void Mouse::MPU_getdata() {
 }
 
 float Mouse::MPU_getX() {
-    return euler[0] * 180/M_PI;
+    return (euler[0] * 180/M_PI) - xOffset;
 }
 
 float Mouse::MPU_getY() {
-    return euler[1] * 180/M_PI;
+    return (euler[1] * 180/M_PI) - yOffset;
 }
 
 float Mouse::MPU_getZ() {
-    return euler[2] * 180/M_PI;
+    return (euler[2] * 180/M_PI) - zOffset;
 }
 
 void Mouse::MPU_setup() {
