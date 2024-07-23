@@ -1,88 +1,40 @@
-#include <gtest/gtest.h>
-#include "mouse.h"
+#include <iostream>
+#include <vector>
+#include "API.h"
+#include "Flood.h" // Assuming Flood.h contains the definitions of floodFill and the custom stack
 
-// Helper functions to simulate resource tracking
-void simulateCpuUsage() {
-    // Simulate some CPU usage
-}
+#define MAZE_SIZE 9
 
-void simulateRamUsage() {
-    // Simulate some RAM usage
-}
+// Define the Cell structure and floodFill function here, or include them from Flood.h
 
-void simulateDiskUsage() {
-    // Simulate some Disk usage
-}
+int main() {
+    API api;
 
-void simulateRuntime() {
-    // Simulate some Runtime usage
-}
+    // Read maze dimensions
+    int width = api.mazeWidth();
+    int height = api.mazeHeight();
 
-// Mock Serial class to capture the print statements
-class MockSerial {
-public:
-    void begin(int baudRate) {}
-    void print(const char* str) {
-        output += str;
-    }
-    void print(int value) {
-        output += std::to_string(value);
-    }
-    void println(const char* str) {
-        output += str;
-        output += "\n";
-    }
-    void println(int value) {
-        output += std::to_string(value);
-        output += "\n";
-    }
-    std::string output;
-};
+    // Initialize the maze
+    int maze[MAZE_SIZE][MAZE_SIZE] = {0};
 
-MockSerial Serial;
+    // Define start and end positions
+    Cell start = {0, 0, 0}; // Example start position
+    Cell end = {width - 1, height - 1, 0}; // Example end position
 
-class MouseTest : public ::testing::Test {
-protected:
-    Mouse mouse;
+    // Use floodFill to solve the maze
+    floodFill(maze, start, end);
 
-    void SetUp() override {
-        mouse.setup();
+    // Simulation logic
+    // Example of interacting with the API
+    while (!api.wasReset()) {
+        if (api.wallFront()) {
+            api.turnLeft();
+            api.moveForward(1);
+        } else {
+            api.moveForward(1);
+        }
     }
 
-    void TearDown() override {
-        // Cleanup code here
-    }
-};
-
-TEST_F(MouseTest, CpuUsageTest) {
-    simulateCpuUsage();
-    mouse.readEncoders();
-    EXPECT_NE(Serial.output.find("Encoder1:"), std::string::npos);
-    EXPECT_NE(Serial.output.find("Encoder2:"), std::string::npos);
-}
-
-TEST_F(MouseTest, RamUsageTest) {
-    simulateRamUsage();
-    mouse.readEncoders();
-    EXPECT_NE(Serial.output.find("Encoder1:"), std::string::npos);
-    EXPECT_NE(Serial.output.find("Encoder2:"), std::string::npos);
-}
-
-TEST_F(MouseTest, DiskUsageTest) {
-    simulateDiskUsage();
-    mouse.readEncoders();
-    EXPECT_NE(Serial.output.find("Encoder1:"), std::string::npos);
-    EXPECT_NE(Serial.output.find("Encoder2:"), std::string::npos);
-}
-
-TEST_F(MouseTest, RuntimeTest) {
-    simulateRuntime();
-    mouse.readEncoders();
-    EXPECT_NE(Serial.output.find("Encoder1:"), std::string::npos);
-    EXPECT_NE(Serial.output.find("Encoder2:"), std::string::npos);
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    api.ackReset();
+    return 0;
 }
