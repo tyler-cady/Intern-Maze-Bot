@@ -31,16 +31,15 @@ void turn_heuristic(bool options[3], Cell current) {
     // Options: left, forward, right 
     Cell avail_cells[3] = { Cell(-1, -1, -1), Cell(-1, -1, -1), Cell(-1, -1, -1) };
 
-    if (options[0]) { // left
-        avail_cells[0] = Cell(current.x - 1, current.y, 0);
-    }
-    if (options[1]) { // forward 
-        avail_cells[1] = Cell(current.x, current.y + 1, 0);
-    }
-    if (options[2]) { // right 
-        avail_cells[2] = Cell(current.x + 1, current.y, 0);
-    }
+    if (options[0]) avail_cells[0] = Cell(current.x - 1, current.y, 0);
+    else if (!options[0]) avail_cells[1] = Cell(-1, -1, -1);
 
+    if (options[1]) avail_cells[1] = Cell(current.x, current.y + 1, 0);
+    else if (!options[0]) avail_cells[1] = Cell(-1, -1, -1);
+    
+    if (options[2]) avail_cells[2] = Cell(current.x + 1, current.y, 0);
+    else if (!options[0]) avail_cells[1] = Cell(-1, -1, -1);
+   
     // Find the direction to the nearest center from avail_cells
     int min_distance = 100;
     int min_index = -1;
@@ -73,36 +72,52 @@ void turn_heuristic(bool options[3], Cell current) {
 }
 
 void getAvailTurnOptions(bool options[3]) {
-    options[0] = !API::wallLeft();
-    options[1] = !API::wallFront();
-    options[2] = !API::wallRight();
+    API api;
+    options[0] = !api.wallLeft();
+    options[1] = !api.wallFront();
+    options[2] = !api.wallRight();
 }
 
 void h_dfs() {
+    API api; 
     bool solved = false;
+    int loop_count = 0; // Counter to keep track of loop iterations
     while (!solved) {
         bool options[3] = {false, false, false};
         getAvailTurnOptions(options);
-        Cell current(API::x(), API::y(), 0);
+        Cell current = MAZE_START;
         turn_heuristic(options, current);
 
         if (options[1]) { // Forward
-            API::moveForward();
+            api.moveForward();
+            current = Cell(current.x, current.y + 1, 0);
+            getAvailTurnOptions(options);
+            turn_heuristic(options, current);
         } else if (options[2]) { // Right
-            API::turnRight();
-            API::moveForward();
+            api.turnRight();
+            api.moveForward();
+            current = Cell(current.x + 1, current.y, 0);
+            getAvailTurnOptions(options);
+            turn_heuristic(options, current);
         } else if (options[0]) { // Left
-            API::turnLeft();
-            API::moveForward();
-        } else {
-            // No valid moves, backtrack or stop
-            std::cout << "No valid moves, stopping." << std::endl;
-            solved = true;
+            api.turnLeft();
+            api.moveForward();
+            current = Cell(current.x - 1, current.y, 0);
+            getAvailTurnOptions(options);
+            turn_heuristic(options, current);
+        } else {// backtrack
+            api.turnLeft();
+            api.turnLeft();
+            api.moveForward();
+            current = Cell(current.x, current.y - 1, 0);
+            getAvailTurnOptions(options);
+            turn_heuristic(options, current);
         }
     }
 }
 
 int main() {
+
     h_dfs();
     return 0;
 }
