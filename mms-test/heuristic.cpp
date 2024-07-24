@@ -1,6 +1,8 @@
 #include "API.h"
 #include <iostream>
 #include <cstdlib> // for abs()
+#include <stack>
+#include <set>
 
 const int MAZE_SIZE = 9;
 
@@ -8,6 +10,12 @@ struct Cell {
     int x, y;
     int distance;
     Cell(int x, int y, int distance) : x(x), y(y), distance(distance) {}
+    bool operator==(const Cell& other) const {
+        return x == other.x && y == other.y;
+    }
+    bool operator<(const Cell& other) const {
+        return x < other.x || (x == other.x && y < other.y);
+    }
 };
 
 const Cell MAZE_START(0, 0, 0);
@@ -18,7 +26,7 @@ const Cell MAZE_CENTERS[4] = {
     Cell(5, 5, 0)
 };
 
-void turn_heuristic(bool options[3], Cell current) {
+void turn_heuristic(bool options[3], Cell current, int& chosen_direction) {
     // Find the closest center to the current cell
     Cell nearest_center = MAZE_CENTERS[0];
     if (current.x <= 4) {
@@ -49,21 +57,7 @@ void turn_heuristic(bool options[3], Cell current) {
         }
     }
 
-    // Print the direction to the nearest center
-    switch (min_index) {
-        case 0:
-            std::cout << "L" << std::endl;
-            break;
-        case 1:
-            std::cout << "F" << std::endl;
-            break;
-        case 2:
-            std::cout << "R" << std::endl;
-            break;
-        default:
-            std::cout << "No valid direction" << std::endl;
-            break;
-    }
+    chosen_direction = min_index;
 }
 
 void getAvailTurnOptions(bool options[3]) {
@@ -72,30 +66,109 @@ void getAvailTurnOptions(bool options[3]) {
     options[2] = !API::wallRight();
 }
 
+bool isCenter(const Cell& cell) {
+    for (const Cell& center : MAZE_CENTERS) {
+        if (cell == center) return true;
+    }
+    return false;
+}
+
 void h_dfs() {
-    bool solved = false;
+    std::stack<Cell> path;
+    std::set<Cell> visited;
     Cell current = MAZE_START;
-    while (!solved) {
+    path.push(current);
+    visited.insert(current);
+
+    while (!path.empty()) {
+        current = path.top();
+        if (isCenter(current)) {
+            std::cout << "Reached center!" << std::endl;
+            break;
+        }
+
         bool options[3] = {false, false, false};
         getAvailTurnOptions(options);
-        turn_heuristic(options, current);
+        int chosen_direction = -1;
+        turn_heuristic(options, current, chosen_direction);
 
-        if (options[1]) { // Forward
-            API::moveForward();
-            current.y += 1;
-        } else if (options[2]) { // Right
-            API::turnRight();
-            API::moveForward();
-            current.x += 1;
-        } else if (options[0]) { // Left
-            API::turnLeft();
-            API::moveForward();
-            current.x -= 1;
-        } else { // No valid moves, backtrack or stop
-            API::turnLeft();
-            API::turnLeft();
-            API::moveForward();
-            current.y -= 1;
+        bool move_successful = false;
+        while (!move_successful && chosen_direction != -1) {
+            Cell next = current;
+            switch (chosen_direction) {
+                case 0: // Left
+                    API::turnLeft();
+                    if (!API::wallFront()) {
+                        API::moveForward();
+                        next.x -= 1;
+                        move_successful = true;
+                    } else {
+                        API::turnRight(); // Undo the turn
+                        options[0] = false; // Mark left as not available
+                    }
+                    break;
+                case 1: // Forward
+                    if (!API::wallFront()) {
+                        API::moveForward();
+                        next.y += 1;
+                        move_successful = true;
+                    } else {
+                        options[1] = false; // Mark forward as not available
+                    }
+                    break;
+                case 2: // Right
+                    API::turnRight();
+                    if (!API::wallFront()) {
+                        API::moveForward();
+                        next.x += 1;
+                        move_successful = true;
+                    } else {
+                        API::turnLeft(); // Undo the turn
+                        options[2] = false; // Mark right as not available
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+            // If the move was successful and the cell is not visited, add the next cell to the path and visited set
+            if (move_successful && visited.find(next) == visited.end()) {
+                path.push(next);
+                visited.insert(next);
+            } else { // Recalculate turn heuristic if the chosen direction didn't work out or the cell is visited
+                move_successful = false;
+                turn_heuristic(options, current, chosen_direction);
+            }
+        }
+
+        // If no move was successful, backtrack
+        if (!move_successful) {
+            path.pop();
+            if (!path.empty()) {
+                Cell back = path.top();
+                // Determine the direction to turn back to the previous cell
+                if (back.x < current.x) {
+                    API::turnRight();
+                    API::turnRight();
+                    API::moveForward();
+                    API::turnLeft();
+                    API::turnLeft();
+                } else if (back.x > current.x) {
+                    API::turnRight();
+                    API::moveForward();
+                    API::turnRight();
+                    API::turnRight();
+                    API::turnLeft();
+                } else if (back.y < current.y) {
+                    API::turnLeft();
+                    API::moveForward();
+                    API::turnLeft();
+                } else if (back.y > current.y) {
+                    API::turnLeft();
+                    API::moveForward();
+                    API::turnRight();
+                }
+            }
         }
     }
 }
