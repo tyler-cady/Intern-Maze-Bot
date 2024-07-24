@@ -3,8 +3,7 @@
 #include <cstdlib> // for abs()
 #include <stack>
 #include <set>
-#include <vector>
-#include <map>
+using namespace std;
 
 const int MAZE_SIZE = 9;
 
@@ -70,166 +69,72 @@ void getAvailTurnOptions(bool options[3]) {
 
 bool isCenter(const Cell& cell) {
     for (const Cell& center : MAZE_CENTERS) {
-        if (cell == center) return true;
+        if (cell == center) {
+            API::setText(center.x, center.y, "SOLVED");
+            return true;
+        }
     }
     return false;
 }
-
-void moveForward(int steps) {
-    for (int i = 0; i < steps; i++) {
-        API::moveForward();
+void move(int direction){
+    if (direction == 0) {
+        API::turnLeft();
+    } else if (direction == 2) {
+        API::turnRight();
     }
+    API::moveForward();
 }
-
-std::vector<std::string> smoothPath(const std::vector<Cell>& path, const std::vector<std::string>& moves) {
-    std::vector<std::string> smooth_moves;
-    std::map<Cell, int> cell_index;
-    std::stack<Cell> cell_stack;
-
-    // Remove loops from path
-    for (int i = 0; i < path.size(); ++i) {
-        Cell current = path[i];
-        if (cell_index.find(current) != cell_index.end()) {
-            int loop_start = cell_index[current];
-            while (path[loop_start] != current) {
-                loop_start++;
-            }
-            // Remove the loop
-            path.erase(path.begin() + loop_start, path.begin() + i);
-            i = loop_start;
-        }
-        cell_index[current] = i;
+int random_choice(bool options[], int& chosen_direction){
+    int random = rand() % 3;
+    while (!options[random]) {
+        random = rand() % 3;
     }
-
-    // Optimize moves
-    for (int i = 0; i < moves.size(); ++i) {
-        if (i < moves.size() - 1 && moves[i] == "F" && moves[i + 1] == "F") {
-            int count = 0;
-            while (i < moves.size() && moves[i] == "F") {
-                count++;
-                i++;
-            }
-            smooth_moves.push_back("F" + std::to_string(count));
-            i--;
-        } else {
-            smooth_moves.push_back(moves[i]);
-        }
-    }
-
-    return smooth_moves;
+    chosen_direction = random;
+    return chosen_direction;
 }
-
-void h_dfs() {
-    std::stack<Cell> path_stack;
-    std::set<Cell> visited;
-    std::vector<Cell> path;
-    std::vector<std::string> moves;
+void dfs(){ 
+    // use depth-first search to find the path (return the path as an array of 3 bool chunks)
+    // drive the maze and return the path to the center as an array of bools (left, forward, right)
+    
+    stack<Cell> path;
+    set<Cell> visited;
     Cell current = MAZE_START;
-    path_stack.push(current);
+    path.push(current);
     visited.insert(current);
-    path.push_back(current);
-
-    while (!path_stack.empty()) {
-        current = path_stack.top();
-        if (isCenter(current)) {
-            std::cout << "Reached center!" << std::endl;
-            break;
-        }
-
+    while (!path.empty() && !isCenter(current)) {
+        current = path.top();
+        
         bool options[3] = {false, false, false};
         getAvailTurnOptions(options);
+        cout << "Options: " << options[0] << " " << options[1] << " " << options[2] << endl;
+        if (!options[0] && !options[1] && !options[2]) {
+            // Dead end, backtrack
+            API::turnLeft();
+            API::turnLeft();
+            API::moveForward();
+            //remove that cell from the path
+            path.pop();
+            continue;
+        }
         int chosen_direction = -1;
-        turn_heuristic(options, current, chosen_direction);
-
+        //turn_heuristic(options, current, chosen_direction);
+        chosen_direction = random_choice(options, chosen_direction);
         bool move_successful = false;
-        Cell next = current;
-
-        if (chosen_direction != -1) {
-            switch (chosen_direction) {
-                case 0: // Left
-                    API::turnLeft();
-                    if (!API::wallFront()) {
-                        moveForward(1);
-                        next = Cell(current.x - 1, current.y, 0);
-                        move_successful = true;
-                        moves.push_back("L");
-                    } else {
-                        API::turnRight(); // Undo the turn
-                    }
-                    break;
-                case 1: // Forward
-                    if (!API::wallFront()) {
-                        moveForward(1);
-                        next = Cell(current.x, current.y + 1, 0);
-                        move_successful = true;
-                        moves.push_back("F");
-                    }
-                    break;
-                case 2: // Right
-                    API::turnRight();
-                    if (!API::wallFront()) {
-                        moveForward(1);
-                        next = Cell(current.x + 1, current.y, 0);
-                        move_successful = true;
-                        moves.push_back("R");
-                    } else {
-                        API::turnLeft(); // Undo the turn
-                    }
-                    break;
-                default:
-                    break;
-            }
-
-            if (move_successful && visited.find(next) == visited.end()) {
-                path_stack.push(next);
-                visited.insert(next);
-                path.push_back(next);
-            } else {
-                move_successful = false;
-                if (!moves.empty()) moves.pop_back(); // Remove the move if it didn't work
-            }
+        move(chosen_direction);
+        switch (chosen_direction) {
+            case 0: current.x--; break;
+            case 1: current.y++; break;
+            case 2: current.x++; break;
         }
-
-        // If no move was successful, backtrack
-        if (!move_successful) {
-            path_stack.pop();
-            if (!path_stack.empty()) {
-                Cell back = path_stack.top();
-                // Determine the direction to turn back to the previous cell
-                if (back.x < current.x) {
-                    API::turnRight();
-                    API::turnRight();
-                    moveForward(1);
-                    API::turnRight();
-                    API::turnRight();
-                } else if (back.x > current.x) {
-                    API::turnRight();
-                    moveForward(1);
-                    API::turnLeft();
-                } else if (back.y < current.y) {
-                    API::turnLeft();
-                    API::turnLeft();
-                    moveForward(1);
-                    API::turnRight();
-                    API::turnRight();
-                } else if (back.y > current.y) {
-                    moveForward(1);
-                }
-                if (!moves.empty()) moves.pop_back(); // Remove the move when backtracking
-            }
-        }
+        path.push(current);
+        visited.insert(current);
     }
-
-    std::vector<std::string> smooth_moves = smoothPath(path, moves);
-
-    // Print the smooth moves taken
-    for (const std::string& move : smooth_moves) {
-        std::cout << move << " ";
-    }
-    std::cout << std::endl;
+    
 }
 
 int main() {
-    h_dfs();
+    //use dfs() to find the path
+    std::cout<<"Start"<<std::endl;
+    dfs();
     return 0;
 }
