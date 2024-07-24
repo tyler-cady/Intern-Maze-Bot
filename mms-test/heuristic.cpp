@@ -71,35 +71,34 @@ void turn_heuristic(bool options[3], Cell current) {
             break;
     }
 }
-bool getAvailTurnOptions(){
-    bool options[3] = { false, false, false };
-        if (!API::wallFront()) {
-            options[1] = true;
-        }
-        if (!API::wallRight()) {
-            options[2] = true;
-        }
-        if (!API::wallLeft()) {
-            options[0] = true;
-        }
-    return options; 
+
+void getAvailTurnOptions(bool options[3]) {
+    options[0] = !API::wallLeft();
+    options[1] = !API::wallFront();
+    options[2] = !API::wallRight();
 }
+
 void h_dfs() {
-    // check wallFront, wallRight, wallLeft and populate options
     bool solved = false;
-    while(solved == false){
-        bool options[3] = getAvailTurnOptions();
-        Cell current(API::mazeWidth(), API::mazeHeight(), 0);
+    while (!solved) {
+        bool options[3] = {false, false, false};
+        getAvailTurnOptions(options);
+        Cell current(API::x(), API::y(), 0);
         turn_heuristic(options, current);
-        if (API::wallFront()) {
+
+        if (options[1]) { // Forward
+            API::moveForward();
+        } else if (options[2]) { // Right
             API::turnRight();
             API::moveForward();
-            options[3] = getAvailTurnOptions();
-        } else {
+        } else if (options[0]) { // Left
+            API::turnLeft();
             API::moveForward();
-            options[3] = getAvailTurnOptions();
+        } else {
+            // No valid moves, backtrack or stop
+            std::cout << "No valid moves, stopping." << std::endl;
+            solved = true;
         }
-    
     }
 }
 
