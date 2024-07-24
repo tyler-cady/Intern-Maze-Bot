@@ -71,14 +71,39 @@ void turn_heuristic(bool options[3], Cell current) {
             break;
     }
 }
-
+bool getAvailTurnOptions(){
+    bool options[3] = { false, false, false };
+        if (!API::wallFront()) {
+            options[1] = true;
+        }
+        if (!API::wallRight()) {
+            options[2] = true;
+        }
+        if (!API::wallLeft()) {
+            options[0] = true;
+        }
+    return options; 
+}
 void h_dfs() {
-    std::cout << "h_dfs" << std::endl;
+    // check wallFront, wallRight, wallLeft and populate options
+    bool solved = false;
+    while(solved == false){
+        bool options[3] = getAvailTurnOptions();
+        Cell current(API::mazeWidth(), API::mazeHeight(), 0);
+        turn_heuristic(options, current);
+        if (API::wallFront()) {
+            API::turnRight();
+            API::moveForward();
+            options[3] = getAvailTurnOptions();
+        } else {
+            API::moveForward();
+            options[3] = getAvailTurnOptions();
+        }
+    
+    }
 }
 
 int main() {
-    bool options[3] = { true, true, true };
-    Cell current(4, 0, 0);
-    turn_heuristic(options, current);
+    h_dfs();
     return 0;
 }
