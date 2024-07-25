@@ -19,9 +19,19 @@ volatile long encoderValue2 = 0; // Raw encoder value
 #define PWMleft1 9
 #define PWMleft2 10
 
-pid leftMotorPID(1.0, 0.5, 0.1, 255, 0);
-pid rightMotorPID(1.0, 0.5, 0.1, 255, 0);
+pid leftMotorPID(1.0, 0.5, 0.1, 100, 0);
+pid rightMotorPID(1.0, 0.5, 0.1, 100, 0);
 
+
+// Generally, you should use "unsigned long" for variables that hold time
+// The value will quickly become too large for an int to store
+
+
+// constants won't change:
+const long interval = 1000;           // interval at which to blink (milliseconds)
+const bool restart = true;
+const unsigned long previousMillis = 0;        // will store last time LED was updated
+const int encoderValueSTART1, encoderValueSTART2; 
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 // speed in percentage of duty cycle. i.e speed = 50 => 50% duty cycle
 void setSpeed(float speed, int pin) {
@@ -88,10 +98,15 @@ void updateMotorSpeeds(double desiredSpeed, double dt) {
   double leftMotorOutput = leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt);
   double rightMotorOutput = rightMotorPID.tick(currentSpeedRight, desiredSpeed, dt);
 
-  setSpeed(leftMotorOutput, PWMleft1);
-  setSpeed(0, PWMleft2);
-  setSpeed(rightMotorOutput, PWMright1);
-  setSpeed(0, PWMright2);
+  //Tests 
+  Serial.println(leftMotorOutput);
+  Serial.println(rightMotorOutput);
+
+
+  setSpeed(0, PWMleft1);
+  setSpeed(leftMotorOutput, PWMleft2);
+  setSpeed(0, PWMright1);
+  setSpeed(rightMotorOutput,PWMright2);
 }
 
 void setup() {
@@ -112,11 +127,24 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoder2Pin1), updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2), updateEncoder2, CHANGE);
 }
-
+void readEncoders(){
+ Serial.print("Encoder1: ");
+ Serial.print(encoderValue, DEC);
+ Serial.println(" ");
+ Serial.print("Encoder2: ");
+ Serial.print(encoderValue2, DEC);
+ Serial.println(" "); 
+}
 void loop() {
+  if(restart){
+    restart = false;
+    unsigned long previousMillis = 0;        // will store last time LED was updated
+    encoderValueSTART1=getLeftEncoderSpeed();
+  }
+  getspeed();
   double desiredSpeed = 100; // Example desired speed
   double dt = 0.1; // Example time delta (should be calculated based on actual loop time)
-
+  readEncoders();
   updateMotorSpeeds(desiredSpeed, dt);
   delay(100); // Example delay (should be adjusted based on actual loop requirements)
 }
@@ -160,5 +188,19 @@ return encoderValue / PPR; // Example calculation (replace with actual logic)
 void resetEncoders() {
 encoderValue = 0;
 encoderValue2 = 0;
+}
+
+float getspeed(){
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    restart = true;
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+    speed = ((encoderValueEND-encoderValueSTART)/interval);
+    encoderValueSTART=encoderValueEND;
+    // set the LED with the ledState of the variable:
+    return speed;
+  }
+
 }
 
