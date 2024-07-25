@@ -1,19 +1,13 @@
 #ifndef PID_HPP
 #define PID_HPP
-#include <ArduinoSTL.h>
-// #include <stdio.h>
-// #include <algorithm> 
-// #include <numeric>
-// #include <vector>
-// #include <functional>
 
 class pid {
 private:
-  const double _max;
-  const double _min;
-  const double _Kp;
-  const double _Kd;
-  const double _Ki;
+  double _max;
+  double _min;
+  double _Kp;
+  double _Kd;
+  double _Ki;
   double _pre_error;
   double _integral;
 
@@ -23,28 +17,28 @@ public:
 
   double tick(double current, double desired, double dt) {
     // Calculate error
-    const double error = desired - current;
+    double error = desired - current;
 
     // Proportional term
-    const double Pout = _Kp * error;
+    double Pout = _Kp * error;
 
     // Integral term
     _integral += error * dt;
-    const double Iout = _Ki * _integral;
-    // Also restrict integral to prevent growth after it saturates
-    _integral = std::max(_integral, _min);
-    _integral = std::min(_integral, _max);
+    double Iout = _Ki * _integral;
+    // Restrict integral to prevent growth after it saturates
+    if (_integral > _max) _integral = _max;
+    else if (_integral < _min) _integral = _min;
 
     // Derivative term
-    const double derivative = (error - _pre_error) / dt;
-    const double Dout = _Kd * derivative;
+    double derivative = (error - _pre_error) / dt;
+    double Dout = _Kd * derivative;
 
     // Calculate total output
     double output = Pout + Iout + Dout;
 
     // Restrict to max/min
-    output = std::max(output, _min);
-    output = std::min(output, _max);
+    if (output > _max) output = _max;
+    else if (output < _min) output = _min;
 
     // Save error to previous error
     _pre_error = error;
