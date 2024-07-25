@@ -1,19 +1,13 @@
 #ifndef PID_HPP
 #define PID_HPP
 
-#include <stdio.h>
-#include <algorithm>
-#include <numeric>
-#include <vector>
-#include <functional>
-
 class pid {
 private:
-  const double _max;
-  const double _min;
-  const double _Kp;
-  const double _Kd;
-  const double _Ki;
+  double _max;
+  double _min;
+  double _Kp;
+  double _Kd;
+  double _Ki;
   double _pre_error;
   double _integral;
 
@@ -23,28 +17,28 @@ public:
 
   double tick(double current, double desired, double dt) {
     // Calculate error
-    const double error = desired - current;
+    double error = desired - current;
 
     // Proportional term
-    const double Pout = _Kp * error;
+    double Pout = _Kp * error;
 
     // Integral term
     _integral += error * dt;
-    const double Iout = _Ki * _integral;
-    // Also restrict integral to prevent growth after it saturates
-    _integral = std::max(_integral, _min);
-    _integral = std::min(_integral, _max);
+    double Iout = _Ki * _integral;
+    // Restrict integral to prevent growth after it saturates
+    if (_integral > _max) _integral = _max;
+    else if (_integral < _min) _integral = _min;
 
     // Derivative term
-    const double derivative = (error - _pre_error) / dt;
-    const double Dout = _Kd * derivative;
+    double derivative = (error - _pre_error) / dt;
+    double Dout = _Kd * derivative;
 
     // Calculate total output
     double output = Pout + Iout + Dout;
 
     // Restrict to max/min
-    output = std::max(output, _min);
-    output = std::min(output, _max);
+    if (output > _max) output = _max;
+    else if (output < _min) output = _min;
 
     // Save error to previous error
     _pre_error = error;
@@ -80,7 +74,6 @@ pid rightMotorPID(1.0, 0.5, 0.1, 255, 0);
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 // speed in percentage of duty cycle. i.e speed = 50 => 50% duty cycle
 void setSpeed(float speed, int pin) {
-  // analogWriteResolution(8);
   float percent = float(speed / 100);
   float dutycycle = float(255 * percent); // 255 is max of 8-bit resolution
   analogWrite(pin, dutycycle); // send PWM to H-bridge
@@ -88,19 +81,17 @@ void setSpeed(float speed, int pin) {
 
 // R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn;
 void turn(bool R_L, int degree, int turn_speed) {
-  // while(MPU_getX()!=degree){
-    if (R_L) {
-      setSpeed(turn_speed, PWMright1);
-      setSpeed(0, PWMright2);
-      setSpeed(turn_speed, PWMleft1);
-      setSpeed(0, PWMleft2);
-    } else {
-      setSpeed(turn_speed, PWMright1);
-      setSpeed(0, PWMright2);
-      setSpeed(turn_speed, PWMleft1);
-      setSpeed(0, PWMleft2);
-    }
-  // }
+  if (R_L) {
+    setSpeed(turn_speed, PWMright1);
+    setSpeed(0, PWMright2);
+    setSpeed(turn_speed, PWMleft1);
+    setSpeed(0, PWMleft2);
+  } else {
+    setSpeed(turn_speed, PWMright1);
+    setSpeed(0, PWMright2);
+    setSpeed(turn_speed, PWMleft1);
+    setSpeed(0, PWMleft2);
+  }
   motors_stop(2);    // stop turning 
   resetEncoders();  // reset encoders to count for next turn
 }
@@ -203,26 +194,19 @@ void updateEncoder2() {
 }
 
 int getLeftEncoderSpeed() {
-  // Implement encoder reading and speed calculation for leftmotor
-return encoderValue2 / PPR; // Example calculation (replace with actual logic)
+  return encoderValue2 / PPR; // Example calculation (replace with actual logic)
 }
 
 int getRightEncoderSpeed() {
-// Implement encoder reading and speed calculation for right motor
-return encoderValue / PPR; // Example calculation (replace with actual logic)
+  return encoderValue / PPR; // Example calculation (replace with actual logic)
 }
 
 void resetEncoders() {
-encoderValue = 0;
-encoderValue2 = 0;
+  encoderValue = 0;
+  encoderValue2 = 0;
 }
 
 // GET RID OF AFTER TESTING FOR OUTPUT PURPOSES ONLY
 void readEncoders() {
-Serial.print(“Encoder1: “);
-Serial.print(encoderValue, DEC);
-Serial.println(” “);
-Serial.print(“Encoder2: “);
-Serial.print(encoderValue2, DEC);
-Serial.println(” “);
-}
+  Serial.print("Encoder1: ");
+  Serial
