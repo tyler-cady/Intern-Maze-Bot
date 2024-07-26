@@ -28,10 +28,11 @@ pid rightMotorPID(1.0, 0.5, 0.1, 100, 0);
 
 
 // constants won't change:
-const long interval = 1000;           // interval at which to blink (milliseconds)
+const long interval = 100;           // .5 seconds
 bool restart = true;
 unsigned long previousMillis1 = 0, previousMillis2 = 0;        // will store last time LED was updated
-int encoderValueSTART1 = 0, encoderValueSTART2 = 0, encoderValueEND1,encoderValueEND2; 
+double encoderValueSTART1 = 0, encoderValueSTART2 = 0, encoderValueEND1,encoderValueEND2; 
+double prevspeed1 = 0.0, prevspeed2 = 0.0;
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 // speed in percentage of duty cycle. i.e speed = 50 => 50% duty cycle
 void setSpeed(float speed, int pin) {
@@ -92,19 +93,22 @@ void motors_straight(bool direction, int speed) {
 }
 
 void updateMotorSpeeds(double desiredSpeed, double dt) {
-  float currentSpeedRight = getspeedRight();
-  float currentSpeedLeft = getspeedLeft();
+  double currentSpeedLeft = getspeedLeft();
+  double currentSpeedRight = getspeedRight();
+
   Serial.println("SPEED RIGHT:");
   Serial.println(currentSpeedRight);
-  Serial.println("SPEED RIGHT:");
+  Serial.println("SPEED LEFT:");
   Serial.println(currentSpeedLeft);
 
   double leftMotorOutput = leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt);
   double rightMotorOutput = rightMotorPID.tick(currentSpeedRight, desiredSpeed, dt);
 
   //Tests 
-  Serial.println(leftMotorOutput);
+  Serial.println("PID OUTPUTS R/L:");
   Serial.println(rightMotorOutput);
+  Serial.println(leftMotorOutput);
+
 
 
   setSpeed(0, PWMleft1);
@@ -146,7 +150,7 @@ void loop() {
   //   encoderValueSTART2=getLeftEncoderSpeed();
   // }
   
-  double desiredSpeed = 100; // Example desired speed
+  double desiredSpeed = 30; // Example desired speed
   double dt = 0.1; // Example time delta (should be calculated based on actual loop time)
   readEncoders();
   updateMotorSpeeds(desiredSpeed, dt);
@@ -204,26 +208,34 @@ double getspeedRight(){ //right is 1 left is 2
     // save the last time you blinked the LED
     previousMillis1 = currentMillis;
       encoderValueEND1=getRightEncoderSpeed();
-      speed = ((encoderValueEND1-encoderValueSTART1));
+      speed = ((encoderValueEND1-encoderValueSTART1)/650)*100;
       encoderValueSTART1=encoderValueEND1;
+      prevspeed1=speed;
+
     // set the LED with the ledState of the variable:
     return speed;
   }
+  else 
+    return prevspeed1;
 }
 
 double getspeedLeft(){ //right is 1 left is 2
-  unsigned long currentMillis = millis();
-  Serial.println(currentMillis);
-  double speed = 0.0;
-  if (currentMillis - previousMillis2 >= interval) {
+  unsigned long currentMillis2 = millis();
+  Serial.println(currentMillis2);
+  double speed2 = 0.0;
+  
+  if (currentMillis2 - previousMillis2 >= interval) {
     Serial.println("INTERVAL HIT 2");
     restart = true;
     // save the last time you blinked the LED
-    previousMillis2 = currentMillis;
-    encoderValueEND1=getLeftEncoderSpeed();
-    speed = ((encoderValueEND2-encoderValueSTART2));
+    previousMillis2 = currentMillis2;
+    encoderValueEND2=getLeftEncoderSpeed();
+    speed2 = ((encoderValueEND2-encoderValueSTART2)/650)*100;
     encoderValueSTART2=encoderValueEND2; 
+    prevspeed2=speed2;
     // set the LED with the ledState of the variable:
-    return speed;
+    return speed2;
   }
+  else
+    return prevspeed2;
 }
