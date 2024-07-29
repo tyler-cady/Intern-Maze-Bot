@@ -1,203 +1,89 @@
-#include <Mouse.h> // Include Mouse class
-#include <queue> // Include queue for flood fill algorithm
+#include "pid.hpp"
+#include "MPU6050.h"
+#include <Wire.h>
 
-// Constants
-const int MAZE_WIDTH = 9;
-const int MAZE_HEIGHT = 9;
-const int INF = 999; // big # for floodfill
-const int CENTER_CELLS[4][2] = {{5, 4}, {6, 4}, {5, 5}, {6, 5}}; // Center coordinates
+MPU6050 mpu;
 
-// Maze grid representation
-int maze[MAZE_WIDTH][MAZE_HEIGHT]; // 0 for open, 1 for wall
-int floodValues[MAZE_WIDTH][MAZE_HEIGHT]; 
-bool visited[MAZE_WIDTH][MAZE_HEIGHT]; // Visited cells
+bool dmpReady = false;
+uint8_t mpuIntStatus;
+uint8_t devStatus;
+uint16_t packetSize;
+uint16_t fifoCount;
+uint8_t fifoBuffer[64];
 
-// Position variables
-int currentX = 0;
-int currentY = 0;
-int currentDirection = 0; // 0: North, 1: East, 2: South, 3: West
+Quaternion q;
+float euler[3];
 
-Mouse mouse; 
+void MPU_setup() {
+    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+        Wire.begin();   
+        Wire.setClock(400000); // 400kHz I2C clock
+    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+        Fastwire::setup(400, true);
+    #endif
 
-// Function prototypes
-void initializeMaze();
-void floodFill();
-void findShortestPath();
-void driveToCenter();
-void returnToStart();
-void storeFastestPath();
-bool isWall(int x, int y, int direction);
-void updateFloodFill();
+    while (!Serial);
+    Serial.println(F("Initializing I2C devices..."));
+    mpu.initialize();
+    pinMode(INTERRUPT_PIN, INPUT);
+    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+
+    while (Serial.available() && Serial.read());
+
+    Serial.println(F("Initializing DMP..."));
+    devStatus = mpu.dmpInitialize();
+
+    mpu.setXGyroOffset(26);
+    mpu.setYGyroOffset(-48);
+    mpu.setZGyroOffset(-17);
+    mpu.setXAccelOffset(-1602);
+    mpu.setYAccelOffset(713);
+    mpu.setZAccelOffset(1788);
+
+    if (devStatus == 0) {
+        mpu.CalibrateAccel(6);
+        mpu.CalibrateGyro(6);
+        mpu.PrintActiveOffsets();
+        Serial.println(F("Enabling DMP..."));
+        mpu.setDMPEnabled(true);
+        mpuIntStatus = mpu.getIntStatus();
+        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        dmpReady = true;
+        packetSize = mpu.dmpGetFIFOPacketSize();
+    } else {
+        Serial.print(F("DMP Initialization failed (code "));
+        Serial.print(devStatus);
+        Serial.println(F(")"));
+    }
+}
+
+pid leftMotorPID(1.0, 0.5, 0.1, mpu, 100, 0);
+pid rightMotorPID(1.0, 0.5, 0.1, mpu, 100, 0);
+
+void updateMotorSpeeds(double desiredSpeed, double dt) {
+  double leftMotorOutput = leftMotorPID.tick(desiredSpeed, dt);
+  double rightMotorOutput = rightMotorPID.tick(desiredSpeed, dt);
+
+  // Tests 
+  Serial.println("PID OUTPUTS R/L:");
+  Serial.println(rightMotorOutput);
+  Serial.println(leftMotorOutput);
+
+  setSpeed(0, PWMleft1);
+  setSpeed(leftMotorOutput, PWMleft2);
+  setSpeed(0, PWMright1);
+  setSpeed(rightMotorOutput, PWMright2);
+}
 
 void setup() {
-  Serial.begin(9600);
-  mouse.setup(); // Initialize the mouse
-
-  // Initialize maze and flood values
-  initializeMaze();
-  floodFill();
-  
-  // Drive to center and return to start
-  driveToCenter();
-  returnToStart();
+  Serial.begin(115200);
+  MPU_setup();
 }
 
 void loop() {
-  // Execute speed phase if needed
-  // driveFastestPath();
-}
-
-void initializeMaze() {
-  // Set walls and initialize flood values
-  for (int x = 0; x < MAZE_WIDTH; x++) {
-    for (int y = 0; y < MAZE_HEIGHT; y++) {
-      maze[x][y] = 0; // Initialize with no walls
-      floodValues[x][y] = INF; // Initialize flood values to infinity
-      visited[x][y] = false; // Mark all cells as unvisited
-    }
-  }
-  
-  // Set center cells with flood value 0
-  for (int i = 0; i < 4; i++) {
-    floodValues[CENTER_CELLS[i][0]][CENTER_CELLS[i][1]] = 0;
-  }
-}
-
-void floodFill() {
-  // flood fill (BFS)
-  std::queue<std::pair<int, int>> queue;
-  
-  // Add center cells to the queue
-  for (int i = 0; i < 4; i++) {
-    queue.push({CENTER_CELLS[i][0], CENTER_CELLS[i][1]});
-  }
-  
-  while (!queue.empty()) {
-    auto cell = queue.front();
-    queue.pop();
-    
-    int x = cell.first;
-    int y = cell.second;
-
-    // Check neighboring cells (up, down, left, right)
-    for (int dir = 0; dir < 4; dir++) {
-      int newX = x + (dir == 0 ? 0 : dir == 1 ? 1 : dir == 2 ? 0 : -1);
-      int newY = y + (dir == 0 ? -1 : dir == 1 ? 0 : dir == 2 ? 1 : 0);
-
-      if (newX >= 0 && newX < MAZE_WIDTH && newY >= 0 && newY < MAZE_HEIGHT &&
-          !isWall(x, y, dir) && floodValues[newX][newY] > floodValues[x][y] + 1) {
-        floodValues[newX][newY] = floodValues[x][y] + 1;
-        queue.push({newX, newY});
-      }
-    }
-  }
-}
-
-bool isWall(int x, int y, int direction) {
-  // Check if wall in the given direction
-  // Use Mouse class sensors to detect walls
-  mouse.checkWalls();
-  if (direction == 0) return mouse.walls[0]; // Front
-  if (direction == 1) return mouse.walls[1]; // Right
-  if (direction == 2) return mouse.walls[2]; // Left
-  return false; // Back direction not checked
-}
-
-void driveToCenter() {
-  while (floodValues[currentX][currentY] != 0) {
-    int minVal = INF;
-    int nextDirection = -1;
-    
-    for (int dir = 0; dir < 4; dir++) {
-      int newX = currentX + (dir == 0 ? 0 : dir == 1 ? 1 : dir == 2 ? 0 : -1);
-      int newY = currentY + (dir == 0 ? -1 : dir == 1 ? 0 : dir == 2 ? 1 : 0);
-
-      if (newX >= 0 && newX < MAZE_WIDTH && newY >= 0 && newY < MAZE_HEIGHT &&
-          !isWall(currentX, currentY, dir) && floodValues[newX][newY] < minVal) {
-        minVal = floodValues[newX][newY];
-        nextDirection = dir;
-      }
-    }
-
-    if (nextDirection == -1) break; // No valid move, exit
-    
-    if (nextDirection != currentDirection) {
-      if ((currentDirection + 1) % 4 == nextDirection) {
-        mouse.Turn(true, 90, 50); // Turn right
-      } else if ((currentDirection + 3) % 4 == nextDirection) {
-        mouse.Turn(false, 90, 50); // Turn left
-      } else {
-        mouse.Turn(false, 180, 50); // Turn around
-      }
-      currentDirection = nextDirection;
-    }
-
-    mouse.motors_straight(true, 50); // Drive forward with speed 50
-    delay(1000); // Wait for 1 second
-
-    currentX = currentX + (currentDirection == 1 ? 1 : currentDirection == 3 ? -1 : 0);
-    currentY = currentY + (currentDirection == 0 ? -1 : currentDirection == 2 ? 1 : 0);
-
-    // Update flood fill based on newly discovered walls
-    updateFloodFill();
-  }
-}
-
-void returnToStart() {
-  // Temporarily mark the center as walls to force a different path
-  for (int i = 0; i < 4; i++) {
-    maze[CENTER_CELLS[i][0]][CENTER_CELLS[i][1]] = 1;
-  }
-
-  floodFill(); // Recalculate flood values
-
-  while (currentX != 0 || currentY != 0) {
-    int minVal = INF;
-    int nextDirection = -1;
-    
-    for (int dir = 0; dir < 4; dir++) {
-      int newX = currentX + (dir == 0 ? 0 : dir == 1 ? 1 : dir == 2 ? 0 : -1);
-      int newY = currentY + (dir == 0 ? -1 : dir == 1 ? 0 : dir == 2 ? 1 : 0);
-
-      if (newX >= 0 && newX < MAZE_WIDTH && newY >= 0 && newY < MAZE_HEIGHT &&
-          !isWall(currentX, currentY, dir) && floodValues[newX][newY] < minVal) {
-        minVal = floodValues[newX][newY];
-        nextDirection = dir;
-      }
-    }
-
-    if (nextDirection == -1) break; // No valid move, exit
-    
-    if (nextDirection != currentDirection) {
-      if ((currentDirection + 1) % 4 == nextDirection) {
-        mouse.Turn(true, 90, 50); // Turn right
-      } else if ((currentDirection + 3) % 4 == nextDirection) {
-        mouse.Turn(false, 90, 50); // Turn left
-      } else {
-        mouse.Turn(false, 180, 50); // Turn around
-      }
-      currentDirection = nextDirection;
-    }
-
-    mouse.motors_straight(true, 50); // Drive forward with speed 50
-    delay(1000); // Wait for 1 second
-
-    currentX = currentX + (currentDirection == 1 ? 1 : currentDirection == 3 ? -1 : 0);
-    currentY = currentY + (currentDirection == 0 ? -1 : currentDirection == 2 ? 1 : 0);
-
-    // Update flood fill based on newly discovered walls
-    updateFloodFill();
-  }
-
-  // Restore the center cells
-  for (int i = 0; i < 4; i++) {
-    maze[CENTER_CELLS[i][0]][CENTER_CELLS[i][1]] = 0;
-  }
-
-  floodFill(); 
-}
-
-void updateFloodFill() {
-
-  floodFill();
+  // Update motor speeds with desired speed and delta time
+  double desiredSpeed = 50.0; // Example desired speed
+  double dt = 0.01; // Example delta time, 10ms
+  updateMotorSpeeds(desiredSpeed, dt);
+  delay(10); // Delay to simulate real-time loop
 }
