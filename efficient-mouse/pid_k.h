@@ -2,6 +2,7 @@
 #define PID_HPP
 
 #include "Kalman.h"
+#include "MPU6050.h"
 
 class pid {
 private:
@@ -13,12 +14,16 @@ private:
   double _pre_error;
   double _integral;
   Kalman _kalman;
+  MPU6050& _mpu;
 
 public:
-  pid(double Kp, double Ki, double Kd, double max = 255, double min = 0)
-      : _max(max), _min(min), _Kp(Kp), _Kd(Kd), _Ki(Ki), _pre_error(0), _integral(0), _kalman() {}
+  pid(double Kp, double Ki, double Kd, MPU6050& mpu, double max = 255, double min = 0)
+      : _max(max), _min(min), _Kp(Kp), _Kd(Kd), _Ki(Ki), _pre_error(0), _integral(0), _kalman(), _mpu(mpu) {}
 
-  double tick(double current, double desired, double dt) {
+  double tick(double desired, double dt) {
+    // Get the current measurement from the MPU6050
+    double current = getMPUData();
+
     // Use the Kalman filter to smooth the current measurement
     double smoothed_current = _kalman.getAngle(current, 0, dt);
 
@@ -50,6 +55,15 @@ public:
     _pre_error = error;
 
     return output;
+  }
+
+  double getMPUData() {
+    _mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+    Quaternion q;
+    _mpu.dmpGetQuaternion(&q, fifoBuffer);
+    float euler[3];
+    _mpu.dmpGetEuler(euler, &q);
+    return euler[0] * 180 / M_PI; // Return X degrees
   }
 };
 
