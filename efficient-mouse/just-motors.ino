@@ -151,21 +151,24 @@ void loop() {
   readEncoders();
   currentSpeedLeft = getspeedLeft();
   currentSpeedRight = getspeedRight();
-  Serial.println("SPEED RIGHT:");
-  Serial.println(currentSpeedRight);
-  Serial.println("SPEED LEFT:");
-  Serial.println(currentSpeedLeft);
-  if ( millis() >= 1000){
-  Serial.println("PID TAKING OVER");
-  updateMotorSpeeds(desiredSpeed, dt);
-  }
-  else{
-  // setSpeed(0, PWMleft1);
-  // setSpeed(40, PWMleft2);
-  // delay(400);
-  // setSpeed(0, PWMright1);
-  // setSpeed(40,PWMright2);
-  }
+  //NORMAL MOTOR FUNCTION
+  motors_straight(true,50);
+  //UNCOMMENT IF YOU WANT TO PID
+  // Serial.println("SPEED RIGHT:");
+  // Serial.println(currentSpeedRight);
+  // Serial.println("SPEED LEFT:");
+  // Serial.println(currentSpeedLeft);
+  // if ( millis() >= 1000){
+  // Serial.println("PID TAKING OVER");
+  // updateMotorSpeeds(desiredSpeed, dt);
+  // }
+  // else{
+  // // setSpeed(0, PWMleft1);
+  // // setSpeed(40, PWMleft2);
+  // // delay(400);
+  // // setSpeed(0, PWMright1);
+  // // setSpeed(40,PWMright2);
+  // }
   delay(100); // Example delay (should be adjusted based on actual loop requirements)
 }
 
