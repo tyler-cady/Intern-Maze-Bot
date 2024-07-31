@@ -1,5 +1,5 @@
-#ifndef MOUSE_H
-#define MOUSE_H
+#ifndef HII_MOUSE_H
+#define HII_MOUSE_H
 
 
 #include "MPU6050_6Axis_MotionApps20.h"
