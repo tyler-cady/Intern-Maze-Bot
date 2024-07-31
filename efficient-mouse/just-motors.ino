@@ -19,8 +19,8 @@ volatile long encoderValue2 = 0; // Raw encoder value
 #define PWMleft1 9
 #define PWMleft2 10
 
-pid leftMotorPID(1.0, 0.5, 0.1, 100, 0);
-pid rightMotorPID(1.0, 0.5, 0.1, 100, 0);
+pid leftMotorPID(0.1, 0.3, .05, 100, 0);
+pid rightMotorPID(0.1, 0.3, .05, 100, 0);
 
 
 // Generally, you should use "unsigned long" for variables that hold time
@@ -32,7 +32,9 @@ const long interval = 100;           // .5 seconds
 bool restart = true;
 unsigned long previousMillis1 = 0, previousMillis2 = 0;        // will store last time LED was updated
 double encoderValueSTART1 = 0, encoderValueSTART2 = 0, encoderValueEND1,encoderValueEND2; 
-double prevspeed1 = 0.0, prevspeed2 = 0.0;
+double prevspeed1 = 0.0, prevspeed2 = 0.0; 
+  double currentSpeedLeft= 0;
+  double currentSpeedRight =0;
 /////////////////////////////////////////////MOTORS////////////////////////////////////////////////////
 // speed in percentage of duty cycle. i.e speed = 50 => 50% duty cycle
 void setSpeed(float speed, int pin) {
@@ -82,19 +84,17 @@ void motors_straight(bool direction, int speed) {
   if (direction) { // forward direction
     setSpeed(0, PWMright1);
     setSpeed(speed, PWMright2);
-    setSpeed(speed, PWMleft1);
-    setSpeed(0, PWMleft2);
+    setSpeed( 0, PWMleft1);
+    setSpeed(speed, PWMleft2);
   } else { // backwards
     setSpeed(speed, PWMright1);
     setSpeed(0, PWMright2);
-    setSpeed(0, PWMleft1);
-    setSpeed(speed, PWMleft2);
+    setSpeed(speed, PWMleft1);
+    setSpeed(0, PWMleft2);
   }
 }
 
 void updateMotorSpeeds(double desiredSpeed, double dt) {
-  double currentSpeedLeft = getspeedLeft();
-  double currentSpeedRight = getspeedRight();
 
   Serial.println("SPEED RIGHT:");
   Serial.println(currentSpeedRight);
@@ -109,12 +109,11 @@ void updateMotorSpeeds(double desiredSpeed, double dt) {
   Serial.println(rightMotorOutput);
   Serial.println(leftMotorOutput);
 
-
-
   setSpeed(0, PWMleft1);
   setSpeed(leftMotorOutput, PWMleft2);
   setSpeed(0, PWMright1);
   setSpeed(rightMotorOutput,PWMright2);
+
 }
 
 void setup() {
@@ -134,6 +133,9 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoderPin2), updateEncoder, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin1), updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2), updateEncoder2, CHANGE);
+
+  delay(200);
+
 }
 void readEncoders(){
  Serial.print("Encoder1: ");
@@ -144,16 +146,26 @@ void readEncoders(){
  Serial.println(" "); 
 }
 void loop() {
-  // if(restart){
-  //   restart = false;
-  //   encoderValueSTART1=getLeftEncoderSpeed();
-  //   encoderValueSTART2=getLeftEncoderSpeed();
-  // }
-  
   double desiredSpeed = 30; // Example desired speed
-  double dt = 0.1; // Example time delta (should be calculated based on actual loop time)
+  double dt = 0.3; // Example time delta (should be calculated based on actual loop time)
   readEncoders();
+  currentSpeedLeft = getspeedLeft();
+  currentSpeedRight = getspeedRight();
+  Serial.println("SPEED RIGHT:");
+  Serial.println(currentSpeedRight);
+  Serial.println("SPEED LEFT:");
+  Serial.println(currentSpeedLeft);
+  if ( millis() >= 1000){
+  Serial.println("PID TAKING OVER");
   updateMotorSpeeds(desiredSpeed, dt);
+  }
+  else{
+  // setSpeed(0, PWMleft1);
+  // setSpeed(40, PWMleft2);
+  // delay(400);
+  // setSpeed(0, PWMright1);
+  // setSpeed(40,PWMright2);
+  }
   delay(100); // Example delay (should be adjusted based on actual loop requirements)
 }
 
@@ -174,13 +186,13 @@ void updateEncoder2() {
   int MSB = digitalRead(encoder2Pin1); // MSB = most significant bit
   int LSB = digitalRead(encoder2Pin2); // LSB = least significant bit
 
-  int encoded = (MSB << 1) | LSB; // converting the 2 pin value to single number
-  int sum  = (lastEncoded2 << 2) | encoded; // adding it to the previous encoded value
+  int encoded2 = (MSB << 1) | LSB; // converting the 2 pin value to single number
+  int sum2  = (lastEncoded2 << 2) | encoded2; // adding it to the previous encoded value
 
-  if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue2--;
-  if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue2++;
+  if (sum2 == 0b1101 || sum2 == 0b0100 || sum2 == 0b0010 || sum2 == 0b1011) encoderValue2--;
+  if (sum2 == 0b1110 || sum2 == 0b0111 || sum2 == 0b0001 || sum2 == 0b1000) encoderValue2++;
 
-  lastEncoded2 = encoded; // store this value for next time
+  lastEncoded2 = encoded2; // store this value for next time
 }
 
 int getLeftEncoderSpeed() {
@@ -198,8 +210,9 @@ encoderValue = 0;
 encoderValue2 = 0;
 }
 
-double getspeedRight(){ //right is 1 left is 2
+double getspeedRight(){ //right is 1 left is 2. Max speed i
   unsigned long currentMillis = millis();
+  Serial.print("Milli rights:");
   Serial.println(currentMillis);
   double speed = 0.0;
   if (currentMillis - previousMillis1 >= interval) {
@@ -221,6 +234,7 @@ double getspeedRight(){ //right is 1 left is 2
 
 double getspeedLeft(){ //right is 1 left is 2
   unsigned long currentMillis2 = millis();
+  Serial.print("Milli rights:");
   Serial.println(currentMillis2);
   double speed2 = 0.0;
   
@@ -239,3 +253,4 @@ double getspeedLeft(){ //right is 1 left is 2
   else
     return prevspeed2;
 }
+
