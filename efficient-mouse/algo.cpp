@@ -14,7 +14,7 @@
 using std::cerr;
 using std::string;
 
-int score[MAZE_SIZE][MAZE_SIZE];      // scores every square, initialised to 0
+int score[MAZE_SIZE][MAZE_SIZE];      // scores every square, initialized to 0
 int history[MAZE_SIZE][MAZE_SIZE][3]; // stores last 3 steps of each point
 
 int x = 0, y = 0, facing = 0;  // coordinates & direction faced (initialize to starting point and facing direction)
@@ -28,7 +28,7 @@ std::vector<std::array<bool, 4>> optimizePath(const std::vector<std::array<bool,
 // Function declarations
 void setWall(int dir, char relativeDir); // sets wall
 void think();                            // movement logic (greed)
-void move(char relativeDir);              // to move f, l, r
+void move(char relativeDir);             // to move f, l, r
 
 /* this is the main method */
 int main(int argc, char *argv[]) {
@@ -59,10 +59,9 @@ int main(int argc, char *argv[]) {
         if      (turn[0]) seeked += "L";
         else if (turn[1]) seeked += "R";
         else if (turn[2]) seeked += "F";
-        else if (turn[2]) seeked += "B";
+        else if (turn[3]) seeked += "B";
     }
     std::cerr << seeked << std::endl; 
-
 
     // Optimize the path
     auto optimizedTurns = optimizePath(turns);
@@ -70,11 +69,11 @@ int main(int argc, char *argv[]) {
     std::string opt;
     // Print the optimized path
     std::cerr << "Optimized path:" << std::endl;
-    for (const auto& turn : turns) {
+    for (const auto& turn : optimizedTurns) {
         if      (turn[0]) opt += "L";
         else if (turn[1]) opt += "R";
         else if (turn[2]) opt += "F";
-        else if (turn[2]) opt += "B";
+        else if (turn[3]) opt += "B";
     }
     std::cerr << opt << std::endl; 
     return 0;
@@ -174,90 +173,95 @@ void think() {
             std::cerr << "take a right" << std::endl;
             move('r');
         } else if (scoreL > -8191) {
-            std::cerr << "take a left" << std::endl;
+            std::cerr << "turn left" << std::endl;
             move('l');
-        } else if (scoreF > -8191) { // just move somewhere if good moves not allowed
-            std::cerr << "go ahead" << std::endl;
-            move('f');
-        } else if (scoreL > -8191) {
-            std::cerr << "take a left" << std::endl;
-            move('l');
-        } else if (scoreR > -8191) {
-            std::cerr << "take a right" << std::endl;
-            move('r');
         } else {
-            inDeadEnd = true; // no other ways left to go
-            move('b');        // only way left to go
+            std::cerr << "go back" << std::endl;
+            move('b');
         }
     }
 }
-std::string optimizePath(std::string seeked) {
-    // LBR = B
-    // LBS = R
-    // RBL = B
-    // SBL = R
-    // SBS = B
-    // LBL = S
-    string opt; 
-    do {
-        for (int i = 0; i < seeked.length(); (i + 3)){
-            string temp = seeked[i] + seeked[i+1] + seeked[i+2];
-            if      (temp == "LBR") opt += "B";
-            else if (temp == "LBS") opt += "R";
-            else if (temp == "RBL") opt += "B";
-            else if (temp == "SBL") opt += "R";
-            else if (temp == "SBS") opt += "B";
-            else if (temp == "LBL") opt += "S";
-            else opt += temp;
-        }
-    } while (opt.find("B"));
-    return opt;
-}
 
+/* moves the bot */
 void move(char relativeDir) {
-    score[x][y] -= travelCost;
-    API::setText(x, y, std::to_string(score[x][y]));
+    if (relativeDir == 'f')
+        ;
+    else if (relativeDir == 'l')
+        facing--;
+    else if (relativeDir == 'r')
+        facing++;
+    else if (relativeDir == 'b')
+        facing += 2;
+
+    facing = (facing + 4) % 4; // turning logic
+
+    if (relativeDir == 'f') {
+        if (facing == 0) y++;
+        if (facing == 1) x++;
+        if (facing == 2) y--;
+        if (facing == 3) x--;
+    }
+
+    API::moveForward();
     moveCount++;
 
     // Record the turn
-    std::array<bool, 4> turn = {false, false, false, false}; // [L, R, F, B]
-    if (relativeDir == 'b') {
-        turn[3] = true; // Back
+    std::array<bool, 4> turn = {false, false, false, false};
+    if (relativeDir == 'l') {
+        turn[0] = true;
     } else if (relativeDir == 'r') {
-        turn[1] = true; // Right
-    } else if (relativeDir == 'l') {
-        turn[0] = true; // Left
+        turn[1] = true;
     } else if (relativeDir == 'f') {
-        turn[2] = true; // Front
+        turn[2] = true;
+    } else if (relativeDir == 'b') {
+        turn[3] = true;
     }
     turns.push_back(turn);
 
-    if (inDeadEnd) {
-        score[x][y] = -16383; // mark as dead end
-        API::setText(x, y, "X");
+    // Set color and text of the current cell
+    API::setColor(x, y, 'G');
+    API::setText(x, y, "X: " + std::to_string(x) + ", Y: " + std::to_string(y) + ", Facing: " + std::to_string(facing));
+}
+
+std::vector<std::array<bool, 4>> optimizePath(const std::vector<std::array<bool, 4>>& originalPath) {
+    std::string pathStr;
+    for (const auto& turn : originalPath) {
+        if      (turn[0]) pathStr += "L";
+        else if (turn[1]) pathStr += "R";
+        else if (turn[2]) pathStr += "F";
+        else if (turn[3]) pathStr += "B";
+    }
+    
+    std::string optimizedPathStr;
+    for (size_t i = 0; i < pathStr.size(); i += 3) {
+        char prevDir = pathStr[i];
+        char currDir = pathStr[i + 1];
+        char nextDir = pathStr[i + 2];
+        
+        if (prevDir == 'L' && currDir == 'F' && nextDir == 'R') {
+            optimizedPathStr += "D";
+        } else if (prevDir == 'R' && currDir == 'F' && nextDir == 'L') {
+            optimizedPathStr += "D";
+        } else if (prevDir == 'L' && currDir == 'B' && nextDir == 'R') {
+            optimizedPathStr += "C";
+        } else if (prevDir == 'R' && currDir == 'B' && nextDir == 'L') {
+            optimizedPathStr += "C";
+        } else {
+            optimizedPathStr += prevDir;
+            optimizedPathStr += currDir;
+            optimizedPathStr += nextDir;
+        }
     }
 
-    if (relativeDir == 'b') { // turn around
-        API::turnRight();
-        API::turnRight();
-        facing = (facing + 2) % 4;
-    } else if (relativeDir == 'r') { // turn right
-        API::turnRight();
-        facing = (facing + 1) % 4;
-    } else if (relativeDir == 'l') { // turn left
-        API::turnLeft();
-        facing = (facing + 3) % 4;
+    std::vector<std::array<bool, 4>> optimizedPath;
+    for (const char& dir : optimizedPathStr) {
+        std::array<bool, 4> turn = {false, false, false, false};
+        if      (dir == 'L') turn[0] = true;
+        else if (dir == 'R') turn[1] = true;
+        else if (dir == 'F') turn[2] = true;
+        else if (dir == 'B') turn[3] = true;
+        optimizedPath.push_back(turn);
     }
 
-    API::moveForward(); // go ahead
-
-    // Update coordinates based on facing direction
-    if (facing == 0) y++;    // moving north
-    else if (facing == 1) x++; // moving east
-    else if (facing == 2) y--; // moving south
-    else if (facing == 3) x--; // moving west
-
-    // Ensure coordinates are within maze bounds
-    x = std::max(0, std::min(MAZE_SIZE - 1, x));
-    y = std::max(0, std::min(MAZE_SIZE - 1, y));
+    return optimizedPath;
 }
