@@ -48,7 +48,7 @@ void laneKeep() {
     float rightDistance = cm[2];
     float error = leftDistance - rightDistance;
 
-    double dt = 0.3; // Example time delta (should be calculated based on actual loop time)
+    double dt = 0.3; // time delta
 
     double leftMotorOutput = leftMotorPID.tick(-error, 0, dt); // Use negative error for left motor
     double rightMotorOutput = rightMotorPID.tick(error, 0, dt);
@@ -227,19 +227,20 @@ void setup() {
 
 void loop() {
   double dt = 0.3; // Example time delta (should be calculated based on actual loop time)
-  readEncoders();
-  currentSpeedLeft = getspeedLeft();
-  currentSpeedRight = getspeedRight();
-  //NORMAL MOTOR FUNCTION
+  laneKeep();
+  // readEncoders();
+  // currentSpeedLeft = getspeedLeft();
+  // currentSpeedRight = getspeedRight();
+  // //NORMAL MOTOR FUNCTION
 
-  //UNCOMMENT IF YOU WANT TO PID
-  // Serial.println("SPEED RIGHT:");
-  // Serial.println(currentSpeedRight);
-  // Serial.println("SPEED LEFT:");
-  // Serial.println(currentSpeedLeft);
-  // if ( millis() >= 1000){
-  // Serial.println("PID TAKING OVER");
-  updateMotorSpeeds(desiredSpeedR,desiredSpeedL, dt);
+  // //UNCOMMENT IF YOU WANT TO PID
+  // // Serial.println("SPEED RIGHT:");
+  // // Serial.println(currentSpeedRight);
+  // // Serial.println("SPEED LEFT:");
+  // // Serial.println(currentSpeedLeft);
+  // // if ( millis() >= 1000){
+  // // Serial.println("PID TAKING OVER");
+  // updateMotorSpeeds(desiredSpeedR,desiredSpeedL, dt);
   // }
   // else{
   // // setSpeed(0, PWMleft1);
