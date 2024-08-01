@@ -14,10 +14,10 @@ volatile long encoderValue = 0; // Raw encoder value
 volatile int lastEncoded2 = 0; // Here updated value of encoder store.
 volatile long encoderValue2 = 0; // Raw encoder value
 
-#define PWMright1 5
-#define PWMright2 6
-#define PWMleft1 9
-#define PWMleft2 10
+#define PWMright1 9
+#define PWMright2 10
+#define PWMleft1 5
+#define PWMleft2 6
 
 pid leftMotorPID(0.1, 0.3, .05, 100, 0);
 pid rightMotorPID(0.1, 0.3, .05, 100, 0);
@@ -80,18 +80,21 @@ void motors_stop(int R_L_BOTH) {
 }
 
 // direction: true=forward; false=backwards. NEED TO BE CALIBRATED BASED ON ORIENTATION OF MOTORS IN CHASSIS
-void motors_straight(bool direction, int speed) {
-  if (direction) { // forward direction
-    setSpeed(0, PWMright1);
-    setSpeed(speed, PWMright2);
-    setSpeed( 0, PWMleft1);
-    setSpeed(speed, PWMleft2);
-  } else { // backwards
-    setSpeed(speed, PWMright1);
-    setSpeed(0, PWMright2);
-    setSpeed(speed, PWMleft1);
-    setSpeed(0, PWMleft2);
-  }
+void motors_straight(bool direction, float speed_right, float speed_left, int delay_right) 
+{
+    if (direction){ //forward direction
+        setSpeed(0,PWMleft1);
+        setSpeed(speed_left,PWMleft2);
+        delay(delay_right);
+        setSpeed(speed_right,PWMright2);
+        setSpeed(0,PWMright1);
+    }
+    else{ //backwards
+        setSpeed(speed_right,PWMright1);
+        setSpeed(0,PWMright2);
+        setSpeed(speed_left,PWMleft1);
+        setSpeed(0,PWMleft2);
+    }
 }
 
 void updateMotorSpeeds(double desiredSpeed, double dt) {
@@ -133,7 +136,7 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoderPin2), updateEncoder, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin1), updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2), updateEncoder2, CHANGE);
-
+  motors_straight(true,32.5/2,40/2,25); //difference of 42.5,49 or 
   delay(200);
 
 }
@@ -152,7 +155,8 @@ void loop() {
   currentSpeedLeft = getspeedLeft();
   currentSpeedRight = getspeedRight();
   //NORMAL MOTOR FUNCTION
-  motors_straight(true,50);
+
+  motors_straight(true,32.5,40.75,25); //difference of 42.5,49 or 
   //UNCOMMENT IF YOU WANT TO PID
   // Serial.println("SPEED RIGHT:");
   // Serial.println(currentSpeedRight);
@@ -256,4 +260,3 @@ double getspeedLeft(){ //right is 1 left is 2
   else
     return prevspeed2;
 }
-
