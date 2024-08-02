@@ -42,6 +42,10 @@ volatile long encoderValue2 = 0; // Raw encoder value
 #define PWMleft2 6
 
 float speed_right, speed_left;
+float init_speed_right = 83; //83 //63
+float init_speed_left = 96; //96 //76
+float change_of_speed = 5; //5
+int distance_to_stop = 6;
 
 pid leftMotorPID(0.1, 0.3, .05, 255, 0);
 pid rightMotorPID(0.1, 0.3, .05, 255, 0);
@@ -120,12 +124,7 @@ void loop() {
 // read_ultra(3,true);
 //  unsigned long looptime = millis();
 //  if(looptime-starttime >=1500){
-// Logan_lanekeep();
 // delay(50);
-Serial.println("Encoder right: ");
-Serial.println(encoderValue);
-Serial.println("Encoder Left: ");
-Serial.println(encoderValue2);
 delay(250);
 read_front_ultra();
 while(cm[1]> 6 || cm[1] == 0){
@@ -141,10 +140,6 @@ delay(1000);
 turn_90(true);
 delay(1000);
 forward_1_block();
-Serial.println("Encoder right: ");
-Serial.println(encoderValue);
-Serial.println("Encoder Left: ");
-Serial.println(encoderValue2);
 delay(5000);
 
 // turn_90(true);
@@ -169,7 +164,7 @@ void forward_1_block(){
   // delay(250);
   // motors_straight(true,83,92,25);
 
-  // motors_stop(2);
+  motors_stop(2);
 }
 
 void turn_90(bool R_L){
@@ -188,27 +183,27 @@ read_left_ultra();
 delay(50);
 read_front_ultra();
 delay(50);
-  speed_right=83;
-  speed_left= 96;
-if((cm[1] < 30 && cm[1] !=0)){
+  speed_right=init_speed_right;
+  speed_left= init_speed_left;
+if((cm[1] < 10 && cm[1] !=0)){
   Serial.println("STOP FROM INSIDE.");
   motors_stop(2);
   return;
 }
 if(cm[0] == cm[2]){
   Serial.print("good");
-  speed_right=83;
-  speed_left= 96;
+  speed_right=init_speed_right;
+  speed_left =init_speed_left;
 }
 else if(cm[0] > cm[2]){//(cm[0] < 2 && cm[2] > 2 ){ //left
   Serial.println("Turning left");
-  speed_right=speed_right+4;
-  speed_left=speed_left-4;
+  speed_right=speed_right+change_of_speed;
+  speed_left=speed_left-change_of_speed;
 }
 else if (cm[2] > cm[0]){ //(cm[2] < 2 && cm[0] > 2 ){ //cm[2] = right cm[0] = left
     Serial.println("Turning right");
-    speed_right=speed_right-4;
-    speed_left=speed_left+4;  
+    speed_right=speed_right-change_of_speed;
+    speed_left=speed_left+change_of_speed;  
 }
 if(first_time){
   motors_straight(true,speed_right/2,speed_left/2,25);
@@ -282,7 +277,6 @@ void setSpeed(float speed, int pin){
 // R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn; turn_speed hardcoded for now
 void Turn(bool R_L, int degree, int turn_speed) 
 {
-    // while(MPU_getX()!=degree){
         if (R_L){
             setSpeed(83,PWMright1);
             setSpeed(0,PWMright2);
@@ -295,8 +289,6 @@ void Turn(bool R_L, int degree, int turn_speed)
             setSpeed(96,PWMleft1);
             setSpeed(0,PWMleft2);
         }
-    // }
-    // motors_stop(2);    //stop turning 
     resetEncoders();  //reset encoders to count for next turn
 }
 //R_L_BOTH: 0=right motor only; 1=left motor only; 2=both motors
