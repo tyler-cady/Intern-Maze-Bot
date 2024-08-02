@@ -17,7 +17,7 @@
 
 NewPing sonar[3] = {
   NewPing(TRIGGER_PIN, ECHO_LEFT,30),
-  NewPing(TRIGGER_PIN, ECHO_FRONT,30),
+  NewPing(TRIGGER_PIN, ECHO_FRONT,500),
   NewPing(TRIGGER_PIN, ECHO_RIGHT,30)
 };
 
@@ -95,9 +95,7 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoderPin2),updateEncoder, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin1),updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2),updateEncoder2, CHANGE);
-  // attachPCINT(digitalPinToPCINT(ECHO_RIGHT),read_right_ultra, FALLING);
-  // attachPCINT(digitalPinToPCINT(ECHO_LEFT),read_left_ultra, FALLING);
-  // attachPCINT(digitalPinToPCINT(ECHO_FRONT),read_front_ultra, FALLING);
+
 
   
 
@@ -129,12 +127,20 @@ Serial.println(encoderValue);
 Serial.println("Encoder Left: ");
 Serial.println(encoderValue2);
 delay(250);
+read_front_ultra();
+while(cm[1]> 6 || cm[1] == 0){
 forward_1_block();
+}
+delay(1000);
+turn_90(false);
+delay(1000);
+while(cm[1]> 5 || cm[1] == 0){
 forward_1_block();
+}
 delay(1000);
 turn_90(true);
 delay(1000);
-turn_90(true);
+forward_1_block();
 Serial.println("Encoder right: ");
 Serial.println(encoderValue);
 Serial.println("Encoder Left: ");
@@ -146,64 +152,73 @@ delay(5000);
 // turn_90(false);
 
 } 
+bool first_time;
 void forward_1_block(){
   delay(1000);
-  motors_straight(true,speed_right/2,speed_left/2,25);
-  delay(250);
+  unsigned long start= millis();
+  unsigned long current = millis();
+  first_time = true;
+  while(current-start <= 800){ //800
   Logan_lanekeep();
+  current = millis();
+  Serial.println("current millis: ");
+  Serial.println(current-start);
+ }
+ Serial.print("out of loop");
   // motors_straight(true,83/2,92/2,25);
   // delay(250);
   // motors_straight(true,83,92,25);
-  delay(750);
-  motors_stop(2);
+
+  // motors_stop(2);
 }
 
 void turn_90(bool R_L){
   motors_stop(2);
   delay(500);
   Turn(R_L,90,83);
-  delay(330);
+  delay(350);
   motors_stop(2);
 }
 void Logan_lanekeep(){
 // delay(100);
-read_ultra(3,true);
+// read_ultra(3,true);
+read_right_ultra();
+delay(50);
+read_left_ultra();
+delay(50);
+read_front_ultra();
+delay(50);
   speed_right=83;
   speed_left= 96;
-if((cm[0] >= 2 && cm[2] >= 2) || (cm[0] == 0 && cm[2] == 0)){
+if((cm[1] < 30 && cm[1] !=0)){
+  Serial.println("STOP FROM INSIDE.");
+  motors_stop(2);
+  return;
+}
+if(cm[0] == cm[2]){
+  Serial.print("good");
   speed_right=83;
   speed_left= 96;
 }
-else if(cm[0] < 2 && cm[2] > 2 ){ //left
+else if(cm[0] > cm[2]){//(cm[0] < 2 && cm[2] > 2 ){ //left
   Serial.println("Turning left");
-  speed_right=speed_right+5;
-  speed_left=speed_left-5;
+  speed_right=speed_right+4;
+  speed_left=speed_left-4;
 }
-else if(cm[2] < 2 && cm[0] > 2 ){ //right
+else if (cm[2] > cm[0]){ //(cm[2] < 2 && cm[0] > 2 ){ //cm[2] = right cm[0] = left
     Serial.println("Turning right");
-    speed_right=speed_right-5;
-    speed_left=speed_left+5;  
+    speed_right=speed_right-4;
+    speed_left=speed_left+4;  
 }
-
+if(first_time){
+  motors_straight(true,speed_right/2,speed_left/2,25);
+  delay(50);
+  first_time = false;
+}
   motors_straight(true,speed_right,speed_left,25);
+  // delay(50);
 }
-void laneKeep() {
-    read_ultra(2,true);
 
-    float leftDistance = cm[0];
-    float rightDistance = cm[2];
-    float error = leftDistance - rightDistance;
-
-    double dt = 0.3; // time delta
-
-    double leftMotorOutput = leftMotorPID.tick(-error, 0, dt); // Use negative error for left motor
-    double rightMotorOutput = rightMotorPID.tick(error, 0, dt);
-
-    setSpeed(leftMotorOutput, PWMleft2);
-    setSpeed(0, PWMleft1);
-    setSpeed(0, PWMright1);
-    setSpeed(rightMotorOutput, PWMright2);
-}
 
 ///////////////////////////////////////////////ENCODER FUNCTIONS////////////////////////////////////////////////////
 void updateEncoder(){
@@ -296,11 +311,12 @@ void motors_stop(int R_L_BOTH)
         setSpeed(0,PWMleft2);
     }
     else if (R_L_BOTH == 2){ //stop both motors
-        setSpeed(0,PWMleft1);
-        setSpeed(0,PWMleft2);
-        delay(25);
+
         setSpeed(0,PWMright1);
         setSpeed(0,PWMright2);
+        setSpeed(0,PWMleft1);
+        setSpeed(0,PWMleft2);
+        // delay(50);
 
     }
 }
@@ -323,12 +339,17 @@ void motors_straight(bool direction, float speed_right, float speed_left, int de
 }
 void read_right_ultra(){
     cm[2] = sonar[2].ping_cm(30) ;
+
 }
 void read_front_ultra(){
     cm[1] = sonar[1].ping_cm(30) ;
+         Serial.print("Distance front: ");
+        Serial.print(cm[1]);
+        Serial.println(" ");
 }
 void read_left_ultra(){
     cm[0] = sonar[0].ping_cm(30) ;
+
 }
 ///////////////////////////////////////////////////////////Ultrasonic/////////////////////////////////////////////////
 //prints each sensor's distance depending. which => 0 = none; 1 = front sensor; 2 =  right sensor; 3 = left sensor; recurse=> true = which downto 0
