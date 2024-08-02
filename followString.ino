@@ -5,18 +5,18 @@ void followString(string path){
             
         }
         else if (path[i] == 'R') {
-            turn(true);//right 
+            turn_90(true);//right 
             forward_1_block();
         }
         
         else if (path[i] == 'L'){
-            turn(false);//left
+            turn_90(false);//left
             API::moveForward(1);
             
         }
         else if (path[i] == 'B') {
-            turn(true);
-            turn(true)
+            turn_90(true);
+            turn_90(true)
             forward_1_block();
         }
     }
