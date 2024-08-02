@@ -176,7 +176,7 @@ void followString(String path){
 
 
 bool first_time;
-void forward_1_block(bool after_turn){
+void forward_1_block(){
   delay(1000);
   unsigned long start= millis();
   unsigned long current = millis();
@@ -223,12 +223,12 @@ if(cm[0] == cm[2]){
   speed_right=init_speed_right;
   speed_left =init_speed_left;
 }
-else if(cm[0] > cm[2]){//(cm[0] < 2 && cm[2] > 2 ){ //left
+else if(cm[0] > cm[2] && cm[0] < 4){//(cm[0] < 2 && cm[2] > 2 ){ //left
   Serial.println("Turning left");
   speed_right=speed_right+change_of_speed;
   speed_left=speed_left-change_of_speed;
 }
-else if (cm[2] > cm[0]){ //(cm[2] < 2 && cm[0] > 2 ){ //cm[2] = right cm[0] = left
+else if (cm[2] > cm[0] && cm[2] < 4){ //(cm[2] < 2 && cm[0] > 2 ){ //cm[2] = right cm[0] = left
     Serial.println("Turning right");
     speed_right=speed_right-change_of_speed;
     speed_left=speed_left+change_of_speed;  
