@@ -95,87 +95,98 @@ void setup() {
   attachPCINT(digitalPinToPCINT(encoderPin2),updateEncoder, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin1),updateEncoder2, CHANGE);
   attachPCINT(digitalPinToPCINT(encoder2Pin2),updateEncoder2, CHANGE);
+  // attachPCINT(digitalPinToPCINT(ECHO_RIGHT),read_right_ultra, FALLING);
+  // attachPCINT(digitalPinToPCINT(ECHO_LEFT),read_left_ultra, FALLING);
+  // attachPCINT(digitalPinToPCINT(ECHO_FRONT),read_front_ultra, FALLING);
 
-  MPU_setup();
-  APDS_setup();
+  
+
+  // MPU_setup();
+  // APDS_setup();
   speed_right=66;
   speed_left= 76;
   Serial.println("straight");
   // motors_straight(true,50,50,50);
-  motors_straight(true,speed_right/2,speed_left/2,25); //difference of 42.5,49 or 
+  // motors_straight(true,speed_right/2,speed_left/2,25); //difference of 42.5,49 or 
   delay(200);
 
 }
 ///WORKS WITH OFFSET R=83 and L=96
+unsigned long starttime = millis();
+
 void loop() {
-speed_right=66;
-speed_left= 76;
-delay(100);
-// motors_straight(true,83,96.9,25); //difference of 42.5,49 or  
-// needle = MPU_getX();
 // APDS_GetColors();  
 // delay(50);
 // // CheckifSolved();
 // delay(50);
+// read_ultra(3,true);
+//  unsigned long looptime = millis();
+//  if(looptime-starttime >=1500){
+// Logan_lanekeep();
+// delay(50);
+Serial.println("Encoder right: ");
+Serial.println(encoderValue);
+Serial.println("Encoder Left: ");
+Serial.println(encoderValue2);
+delay(250);
+forward_1_block();
+forward_1_block();
+delay(1000);
+turn_90(true);
+delay(1000);
+turn_90(true);
+Serial.println("Encoder right: ");
+Serial.println(encoderValue);
+Serial.println("Encoder Left: ");
+Serial.println(encoderValue2);
+delay(5000);
+
+// turn_90(true);
+// delay(2000);
+// turn_90(false);
+
+} 
+void forward_1_block(){
+  delay(1000);
+  motors_straight(true,speed_right/2,speed_left/2,25);
+  delay(250);
+  Logan_lanekeep();
+  // motors_straight(true,83/2,92/2,25);
+  // delay(250);
+  // motors_straight(true,83,92,25);
+  delay(750);
+  motors_stop(2);
+}
+
+void turn_90(bool R_L){
+  motors_stop(2);
+  delay(500);
+  Turn(R_L,90,83);
+  delay(330);
+  motors_stop(2);
+}
+void Logan_lanekeep(){
+// delay(100);
 read_ultra(3,true);
-// if ((cm[1] <= 2 )||(cm[1] == 0)){
-//   motors_stop(2);
-// }
+  speed_right=83;
+  speed_left= 96;
 if((cm[0] >= 2 && cm[2] >= 2) || (cm[0] == 0 && cm[2] == 0)){
-  motors_straight(true,speed_right,speed_left,25); //difference of 42.5,49 or 
+  speed_right=83;
+  speed_left= 96;
 }
 else if(cm[0] < 2 && cm[2] > 2 ){ //left
   Serial.println("Turning left");
-  speed_right=speed_right+6;
-  speed_left=speed_left-6;
-  motors_straight(true,speed_right,speed_left,25);
+  speed_right=speed_right+5;
+  speed_left=speed_left-5;
 }
 else if(cm[2] < 2 && cm[0] > 2 ){ //right
-
     Serial.println("Turning right");
-    speed_right=speed_right-6;
-    speed_left=speed_left+6;
-    motors_straight(true,speed_right,speed_left,25);
-  
+    speed_right=speed_right-5;
+    speed_left=speed_left+5;  
 }
 
-// delay(50);
-// MPU_getdata();
-delay(50);
-// bool correct_speed_0 = true;
-// unsigned long starttime = millis();
-// while(needle > 1){ //+ turns right more
-//   unsigned long looptime = millis();
-//   needle = MPU_getX();
-//   Serial.println("Turning left");
-//   if(looptime-starttime >=500){
-//     speed_left=speed_left+1;
-//     // speed_right=speed_right-.5;
-//     starttime=looptime;
-//   }
-//   motors_straight(true,speed_right,speed_left,25);
-//   delay(150);
-//   // needle = MPU_getX();
-// }
-// bool correct_speed_1 = true;
-// starttime = millis();
-// while(needle < -1){ //- turns right more
-//   unsigned long looptime = millis();
-//   needle = MPU_getX();
-//   Serial.println("Turing right");
-//   if(looptime-starttime >=500){
-//     speed_right=speed_right+1;
-//     // speed_left=speed_left-.5;
-//     starttime=looptime;
-//   }
-//   motors_straight(true,speed_right,speed_left,25);
-//   delay(150);
-  // needle = MPU_getX();
-// }
-// Serial.println("Straight");
-  // motors_straight(true,30,30,0);
-} 
-
+  motors_straight(true,speed_right,speed_left,25);
+}
 void laneKeep() {
     read_ultra(2,true);
 
@@ -253,24 +264,24 @@ void setSpeed(float speed, int pin){
   analogWrite(pin, speed); //send PWM to H bridge
 }
 
-// R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn;
+// R_L determines turn right or left. R_L = true : right turn; R_L = false : left turn; turn_speed hardcoded for now
 void Turn(bool R_L, int degree, int turn_speed) 
 {
     // while(MPU_getX()!=degree){
         if (R_L){
-            setSpeed(turn_speed,PWMright1);
+            setSpeed(83,PWMright1);
             setSpeed(0,PWMright2);
-            setSpeed(turn_speed,PWMleft1);
-            setSpeed(0,PWMleft2);
+            setSpeed(0,PWMleft1);
+            setSpeed(96,PWMleft2);
         }
         else{
-            setSpeed(turn_speed,PWMright1);
-            setSpeed(0,PWMright2);
-            setSpeed(turn_speed,PWMleft1);
+            setSpeed(0,PWMright1);
+            setSpeed(83,PWMright2);
+            setSpeed(96,PWMleft1);
             setSpeed(0,PWMleft2);
         }
     // }
-    motors_stop(2);    //stop turning 
+    // motors_stop(2);    //stop turning 
     resetEncoders();  //reset encoders to count for next turn
 }
 //R_L_BOTH: 0=right motor only; 1=left motor only; 2=both motors
@@ -285,10 +296,12 @@ void motors_stop(int R_L_BOTH)
         setSpeed(0,PWMleft2);
     }
     else if (R_L_BOTH == 2){ //stop both motors
-        setSpeed(0,PWMright1);
-        setSpeed(0,PWMright2);
         setSpeed(0,PWMleft1);
         setSpeed(0,PWMleft2);
+        delay(25);
+        setSpeed(0,PWMright1);
+        setSpeed(0,PWMright2);
+
     }
 }
 //direction: true=forward; false=backwards. NEED TO BE CALIBRATED BASED ON ORIENTATION OF MOTORS IN CHASSIS
@@ -307,6 +320,15 @@ void motors_straight(bool direction, float speed_right, float speed_left, int de
         setSpeed(speed_left,PWMleft1);
         setSpeed(0,PWMleft2);
     }
+}
+void read_right_ultra(){
+    cm[2] = sonar[2].ping_cm(30) ;
+}
+void read_front_ultra(){
+    cm[1] = sonar[1].ping_cm(30) ;
+}
+void read_left_ultra(){
+    cm[0] = sonar[0].ping_cm(30) ;
 }
 ///////////////////////////////////////////////////////////Ultrasonic/////////////////////////////////////////////////
 //prints each sensor's distance depending. which => 0 = none; 1 = front sensor; 2 =  right sensor; 3 = left sensor; recurse=> true = which downto 0
