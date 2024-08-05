@@ -47,10 +47,10 @@ float init_speed_left = 96; //96 //76
 float change_of_speed = 5; //5
 int distance_to_stop = 6;
 
-// pid leftMotorPID(.085,.00085 , 1.75, 1000, 0); //.5
-// pid rightMotorPID(.085, .00085, 1.75, 1000, 0); //.5
-pid leftMotorPID(.1,.3,.01,1000,0);
-pid rightMotorPID(.1,.3,.01,1000,0);
+pid leftMotorPID(.1, 0 , 0, 1000, 0); //.5
+pid rightMotorPID(.1, 0, 0, 1000, 0); //.5
+// pid leftMotorPID(0.1,0.3,.05,1000,0);
+// pid rightMotorPID(0.1,0.3,.05,1000,0);
 
 const long interval = 10;           // .5 seconds
 bool restart = true;
@@ -160,7 +160,7 @@ void loop() {
 // delay(2000);
 // turn_90(false);
 //  readEncoders();
-updateMotorSpeeds(400,.5);
+updateMotorSpeeds(400,.06);
 // delay(100);
 
 } 
@@ -181,9 +181,6 @@ void updateMotorSpeeds(double desiredSpeed, double dt) {
 
   // double leftMotorOutput = 233 + (-0.893*(leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)))+((.00117*(leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)*(leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)))));
   // double rightMotorOutput = 233 + (-0.893*(rightMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)))+((.00117*(rightMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)*(rightMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)))));
-  // // double leftMotorOutput = map()
-  // double leftMotorOutput = (-(leftMotorPID.tick(currentSpeedLeft, desiredSpeed, dt)-194.9)/2.087);
-  // double rightMotorOutput = ((rightMotorPID.tick(currentSpeedRight, desiredSpeed, dt)-194.9)/2.087);
 
 
   // //Tests 
