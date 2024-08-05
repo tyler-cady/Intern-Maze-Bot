@@ -31,14 +31,7 @@ private:
 
     // Function to log data to a CSV file
     void log(const std::string& time, double input, double output) {
-        if (!_log_file.is_open()) {
-            _log_file.open("pid_log.csv", std::ios::out | std::ios::app);
-            // Write the header if the file is newly created
-            if (_log_file.tellp() == 0) {
-                _log_file << "Time,Input,Output\n";
-            }
-        }
-        _log_file << time << "," << input << "," << output << "\n";
+        cout << time << "," << input << "," << output << "\n";
     }
 
 public:
