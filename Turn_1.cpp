@@ -51,3 +51,26 @@ void Turn(bool R_L, int degree, int turn_speed)
     motors_stop(2);
     resetEncoders();  // reset encoders after turn
 }
+
+float MPU_getX() {
+    // Assumes the MPU6050 is already set up and DMP is enabled
+    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+        Quaternion q;
+        VectorFloat gravity;
+        float ypr[3];
+
+        // Get the quaternion from FIFO
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+
+        // Get gravity vector
+        mpu.dmpGetGravity(&gravity, &q);
+
+        // Get yaw/pitch/roll
+        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+        // Return the yaw (X-axis rotation) in degrees
+        return ypr[0] * 180/M_PI;
+    }
+    return 0; // Return 0 if no data is available
+}
+
