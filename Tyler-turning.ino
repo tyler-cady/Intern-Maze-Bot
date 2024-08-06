@@ -120,11 +120,41 @@ void turn(bool isRight, double init_heading = 0) {
     analogWrite(PWMright2, 0);
 }
 
-void moveForward() {
-    analogWrite(PWMleft1, init_speed_left);
-    analogWrite(PWMright1, init_speed_right);
-    analogWrite(PWMright2 )
-    delay(1000); // move forward for 1 block (adjust timing as needed)
+void moveForward(bool forward) {
+ 
+    mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    float target_heading = isRight ? ypr[0] + M_PI_2 : ypr[0] - M_PI_2;
+ 
+    while (abs(ypr[0] - target_heading) > 0.01){
+ 
+        mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+ 
+        float error = target_heading - ypr[0];
+        float correction = rightMotorPID.tick(0, error, -0.2399); // assuming dt is 0.1s
+        if forward {
+            analogWrite(PWMright2, init_speed_right);
+            analogWrite(PWMleft2, init_speed_left);
+            analogWrite(PWMleft1, 0);
+            analogWrite(PWMright1, 0);      
+        } else {
+            analogWrite(PWMleft1, init_speed_left);
+            analogWrite(PWMright1, init_speed_right);
+            analogWrite(PWMright2, 0);
+            analogWrite(PWMleft2, 0);
+        }
+        delay(1000); // move forward for 1 block (adjust timing as needed)
+    }
+    // Stop the motors after turning
+    analogWrite(PWMleft1, 0);
+    analogWrite(PWMleft2, 0);
+    analogWrite(PWMright1, 0);
+    analogWrite(PWMright2, 0);
 }
 
 void MPU_setup() {
