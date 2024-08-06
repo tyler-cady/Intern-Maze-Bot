@@ -88,7 +88,7 @@ void turn(bool isRight, double init_heading = 0) {
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     float target_heading = isRight ? ypr[0] + M_PI_2 : ypr[0] - M_PI_2;
-
+    Serial.println(target_heading);
     while (abs(ypr[0] - target_heading) > 0.01) {
         mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
         mpu.dmpGetQuaternion(&q, fifoBuffer);
@@ -120,57 +120,114 @@ void turn(bool isRight, double init_heading = 0) {
     analogWrite(PWMright2, 0);
 }
 
-void moveForward(bool forward) {
+// void moveForward(bool forward) {
  
-    mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-    float target_heading = isRight ? ypr[0] + M_PI_2 : ypr[0] - M_PI_2;
+//     mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+//     mpu.dmpGetQuaternion(&q, fifoBuffer);
+//     mpu.dmpGetGravity(&gravity, &q);
+//     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+//     float target_heading = forward ? ypr[0] + M_PI_2 : ypr[0] - M_PI_2;
  
-    while (abs(ypr[0] - target_heading) > 0.01){
+//     while (true){
  
-        mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
-        mpu.dmpGetQuaternion(&q, fifoBuffer);
-        mpu.dmpGetGravity(&gravity, &q);
-        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+//         mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+//         mpu.dmpGetQuaternion(&q, fifoBuffer);
+//         mpu.dmpGetGravity(&gravity, &q);
+//         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
  
-        float error = target_heading - ypr[0];
-        float correction = rightMotorPID.tick(0, error, -0.2399); // assuming dt is 0.1s
-        if forward {
-            analogWrite(PWMright2, init_speed_right);
-            analogWrite(PWMleft2, init_speed_left);
-            analogWrite(PWMleft1, 0);
-            analogWrite(PWMright1, 0);      
-        } else {
-            analogWrite(PWMleft1, init_speed_left);
-            analogWrite(PWMright1, init_speed_right);
-            analogWrite(PWMright2, 0);
-            analogWrite(PWMleft2, 0);
-        }
-        delay(1000); // move forward for 1 block (adjust timing as needed)
-    }
-    // Stop the motors after turning
-    analogWrite(PWMleft1, 0);
-    analogWrite(PWMleft2, 0);
-    analogWrite(PWMright1, 0);
-    analogWrite(PWMright2, 0);
-}
+//         float error = target_heading - ypr[0];
+//         float correction = rightMotorPID.tick(0, error, -0.2399); // assuming dt is 0.1s
+//         if (forward) {
+//             analogWrite(PWMright2, init_speed_right);
+//             analogWrite(PWMleft2, init_speed_left);
+//             analogWrite(PWMleft1, 0);
+//             analogWrite(PWMright1, 0);      
+//         } else {
+//             analogWrite(PWMleft1, init_speed_left);
+//             analogWrite(PWMright1, init_speed_right);
+//             analogWrite(PWMright2, 0);
+//             analogWrite(PWMleft2, 0);
+//         }
+//         delay(1000); // move forward for 1 block (adjust timing as needed)
+//     }
+//     // Stop the motors after turning
+//     analogWrite(PWMleft1, 0);
+//     analogWrite(PWMleft2, 0);
+//     analogWrite(PWMright1, 0);
+//     analogWrite(PWMright2, 0);
+// }
 
 void MPU_setup() {
-    Wire.begin();
+    // join I2C bus (I2Cdev library doesn't do this automatically)
+    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+        Wire.begin();   
+        Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+        Fastwire::setup(400, true);
+    #endif
+    while (!Serial); // wait for Leonardo enumeration, others continue immediately
+    // initialize device
+    Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
+    pinMode(INTERRUPT_PIN, INPUT);
+    // verify connection
+    Serial.println(F("Testing device connections..."));
+    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+	
+    while (Serial.available() && Serial.read()); // empty buffer
+
+    // load and configure the DMP
+    Serial.println(F("Initializing DMP..."));
     devStatus = mpu.dmpInitialize();
+
+    // supply your own gyro offsets here, scaled for min sensitivity
+    mpu.setXGyroOffset(26);
+    mpu.setYGyroOffset(-48);
+    mpu.setZGyroOffset(-17);
+    mpu.setXAccelOffset(-1602);
+    mpu.setYAccelOffset(713);
+    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
+
+    // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
+        // Calibration Time: generate offsets and calibrate our MPU6050
+        mpu.CalibrateAccel(6);
+        mpu.CalibrateGyro(6);
+        mpu.PrintActiveOffsets();
+        // turn on the DMP, now that it's ready
+        Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
+
+        // enable Arduino interrupt detection
+        // Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+        // Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        // Serial.println(F(")..."));
+        // attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
+
+        // set our DMP Ready flag so the main loop() function knows it's okay to use it
+        Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
+
+        // get expected DMP packet size for later comparison
         packetSize = mpu.dmpGetFIFOPacketSize();
+
+        Serial.print(F("Hold the mouse still to true North stationary values..."));
+        delay(3000);
+        Serial.print(F("Straight is: "));
+        MPU_0_straight = MPU_getX();
+        delay(1000);
+
     } else {
+        // ERROR!
+        // 1 = initial memory load failed
+        // 2 = DMP configuration updates failed
+        // (if it's going to break, usually the code will be 1)
         Serial.print(F("DMP Initialization failed (code "));
         Serial.print(devStatus);
         Serial.println(F(")"));
     }
+
 }
 
 void updateEncoder() {
@@ -218,8 +275,29 @@ void setup() {
     speed_left = init_speed_left;
     delay(2000);
 }
+void MPU_getdata(){
+  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+  // display Euler angles in degrees
+      mpu.dmpGetQuaternion(&q, fifoBuffer);
+      mpu.dmpGetGravity(&gravity, &q);
+      mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+      Serial.print("ypr\t");
+      // Serial.print(ypr[0] * 180/M_PI);
+      // Serial.print("\t");
+      // Serial.print(ypr[1] * 180/M_PI);
+      // Serial.print("\t");
+      Serial.println(ypr[2] * 180/M_PI);
+  }
+}
+//return X degrees
+float MPU_getX(){
+  MPU_getdata();
+  float X_degrees=(ypr[2] * 180/M_PI);
+  return 2*X_degrees;
+}
 
 void loop() {
-    turn(true);
+    // turn(true);
+    Serial.println(MPU_getX());
     delay(1000);
 }
