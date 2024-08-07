@@ -1,0 +1,281 @@
+#include "MPU6050_6Axis_MotionApps20.h"
+#include "Wire.h"
+#include "I2Cdev.h"
+#include "NewPing.h"
+#include "PinChangeInterrupt.h"
+#include <tcs3200.h>
+#include "Adafruit_APDS9960.h"
+#include <string.h>
+
+#define TRIGGER_PIN  A3  // Ultrasonic Trigger pin
+#define ECHO_FRONT  A1   // Ultrasonic Echo pin for front sensor
+#define ECHO_LEFT A0   // Ultrasonic Echo pin for left sensor
+#define ECHO_RIGHT A2   // Ultrasonic Echo pin for right sensor
+#define MAX_DIST 10
+#define loopCost 20
+#define travelCost 5
+#define branchReward 5
+#define TURN_90_DEGREES_COUNTS 1000  // Define the number of encoder counts for a 90-degree turn
+
+#define MAZE_SIZE 9 // Update to 9 for a 9x9 maze
+
+int score[MAZE_SIZE][MAZE_SIZE];      // scores every square, initialized to 0
+int history[MAZE_SIZE][MAZE_SIZE][7]; 
+
+int x = 3, y = 0, facing = 0;  // coordinates & direction faced (initialize to starting point and facing direction)
+int moveCount = 1; // total number of moves made till now
+bool inDeadEnd = false;    // checks if we are inside a deadend
+
+// Function declarations
+void setWall(int dir, char relativeDir); // sets wall
+void think();                            // movement logic (greed)
+void move(char relativeDir);             // to move f, l, r
+float get_dist(int trig, int echo);      // get distance from ultrasonic sensor
+void APDS_GetColors();                  // Get color data
+bool CheckifSolved();                  // Check if the maze is solved
+void followString(String path);         // Follow the path string
+String optimizePath(String& seeked);   // Optimize the path string
+
+void setup() {
+  // The Trigger pin will tell the sensor to range find
+  pinMode(TRIGGER_PIN, OUTPUT);
+  digitalWrite(TRIGGER_PIN, LOW);
+
+  // Set Echo pins as input to measure the duration of pulses coming back from the distance sensor
+  pinMode(ECHO_FRONT, INPUT);
+  pinMode(ECHO_LEFT, INPUT);
+  pinMode(ECHO_RIGHT, INPUT);
+
+  // Initialize serial communication for debugging
+  Serial.begin(9600);
+
+  // Initialize score array and display it
+  for (int i = 0; i < MAZE_SIZE; i++) {
+    for (int j = 0; j < MAZE_SIZE; j++) {
+      score[i][j] = 128 - (abs(2 * i - (MAZE_SIZE - 1)) + abs(2 * j - (MAZE_SIZE - 1))) / 2;
+      Serial.print("Score at (");
+      Serial.print(i);
+      Serial.print(", ");
+      Serial.print(j);
+      Serial.print("): ");
+      Serial.println(score[i][j]);
+    }
+  }
+}
+
+void loop() {
+  // Main loop to navigate through the maze until reaching the central area
+  while (!CheckifSolved()) {
+    think();
+    // // Log the current state
+    // Serial.print("Position: (");
+    // Serial.print(x);
+    // Serial.print(", ");
+    // Serial.print(y);
+    // Serial.print("), Facing: ");
+    // Serial.println(facing);
+    // Serial.print("Score: ");
+    // Serial.println(score[x][y]);
+  }
+
+  // Print the recorded turns as a string
+  Serial.println("Maze solved! Turns taken:");
+  // Add any additional logic for completing the maze or stopping the robot
+}
+
+float get_dist(int trig, int echo) {
+  unsigned long t1;
+  unsigned long t2;
+  unsigned long pulse_width;
+  float cm;
+
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+
+  while (digitalRead(echo) == 0);
+
+  t1 = micros();
+  while (digitalRead(echo) == 1);
+  t2 = micros();
+  pulse_width = t2 - t1;
+  cm = pulse_width / 58.0;
+
+  // Print out results
+  if (pulse_width > 23200) {
+    return -1; // Return -1 if out of range
+  } else {
+    return cm;
+  }
+}
+
+bool wallLeft(){
+  float temp = get_dist(TRIGGER_PIN, ECHO_LEFT);
+  return temp <= MAX_DIST;
+}
+
+bool wallRight(){
+  float temp = get_dist(TRIGGER_PIN, ECHO_RIGHT);
+  return temp <= MAX_DIST;
+}
+
+bool wallFront(){
+  float temp = get_dist(TRIGGER_PIN, ECHO_FRONT);
+  return temp <= MAX_DIST;
+}
+
+void turnRight(){
+  // Implement turning right logic
+  // For simplicity, this is a placeholder
+  Serial.println("Turning Right");
+  delay(500); // Simulate time to turn
+}
+
+void turnLeft(){
+  // Implement turning left logic
+  // For simplicity, this is a placeholder
+  Serial.println("Turning Left");
+  delay(500); // Simulate time to turn
+}
+
+void moveForward(){
+  // Move forward logic
+  // For simplicity, this is a placeholder
+  Serial.println("Moving Forward");
+  delay(1000); // Simulate time to move forward
+}
+
+void moveBackward(){
+  // Move backward logic
+  // For simplicity, this is a placeholder
+  Serial.println("Moving Backward");
+  delay(1000); // Simulate time to move backward
+}
+
+void setWall(int dir, char relativeDir) {
+  if (relativeDir == 'f')
+    ; // do nothing
+  else if (relativeDir == 'l')
+    dir--; // rotate anticlockwise
+  else if (relativeDir == 'r')
+    dir++; // rotate clockwise
+
+  dir = (dir + 4) % 4; // -1 --> 3 and 4 --> 0
+
+  char absoluteDir = (dir == 0) ? 'n' : (dir == 1) ? 'e'
+                                      : (dir == 2)   ? 's'
+                                                     : 'w';
+  Serial.print("Setting wall at (");
+  Serial.print(x);
+  Serial.print(", ");
+  Serial.print(y);
+  Serial.print(") facing ");
+  Serial.println(absoluteDir);
+}
+
+void think() {
+  bool frontWall = wallFront(); // Use distinct variable names
+  bool leftWall = wallLeft();
+  bool rightWall = wallRight();
+  
+  if (frontWall) setWall(facing, 'f');
+  if (leftWall) setWall(facing, 'l');
+  if (rightWall) setWall(facing, 'r');
+
+  int wallCount = frontWall + rightWall + leftWall;
+
+  // Update history array
+  history[x][y][0] = history[x][y][1]; // discard the oldest value
+  history[x][y][1] = history[x][y][2]; // shift values
+  history[x][y][2] = moveCount;        // add the current move
+
+  // Check for loops
+  if (history[x][y][1] - history[x][y][0] == history[x][y][2] - history[x][y][1]) {
+    score[x][y] -= loopCost;
+    Serial.print("Score at (");
+    Serial.print(x);
+    Serial.print(", ");
+    Serial.print(y);
+    Serial.print("): ");
+    Serial.println(score[x][y]);
+  }
+
+  if (wallCount == 3) { // Dead end
+    inDeadEnd = true; // initiate protocol
+    moveBackward();
+  } else if (wallCount == 2) { // Only one way to go
+    if (!frontWall) {
+      moveForward();
+    } else if (!leftWall) {
+      turnLeft();
+      moveForward();
+    } else {
+      turnRight();
+      moveForward();
+    }
+  } else if (wallCount < 2) {
+    inDeadEnd = false; // No longer in a dead end
+
+    int dir, u, v;
+    int scoreF = -16383, scoreR = -16383, scoreL = -16383;
+    
+    if (!frontWall) {
+      dir = facing; // Direction is straight ahead
+      u = (dir == 1) ? x + 1 : (dir == 3) ? x - 1 : x; // Move forward
+      v = (dir == 0) ? y + 1 : (dir == 2) ? y - 1 : y;
+      scoreF = (u >= 0 && u < MAZE_SIZE && v >= 0 && v < MAZE_SIZE) ? score[u][v] : -16383;
+    }
+    if (!rightWall) {
+      dir = (facing + 1) % 4; // Direction is right
+      u = (dir == 1) ? x + 1 : (dir == 3) ? x - 1 : x; // Move rightwards
+      v = (dir == 0) ? y + 1 : (dir == 2) ? y - 1 : y;
+      scoreR = (u >= 0 && u < MAZE_SIZE && v >= 0 && v < MAZE_SIZE) ? score[u][v] : -16383;
+    }
+    if (!leftWall) {
+      dir = (facing + 3) % 4; // Direction is left
+      u = (dir == 1) ? x + 1 : (dir == 3) ? x - 1 : x; // Move leftwards
+      v = (dir == 0) ? y + 1 : (dir == 2) ? y - 1 : y;
+      scoreL = (u >= 0 && u < MAZE_SIZE && v >= 0 && v < MAZE_SIZE) ? score[u][v] : -16383;
+    }
+
+    if (scoreF >= scoreR && scoreF >= scoreL) {
+      moveForward();
+    } else if (scoreR >= scoreF && scoreR >= scoreL) {
+      turnRight();
+      moveForward();
+    } else if (scoreL >= scoreF && scoreL >= scoreR) {
+      turnLeft();
+      moveForward();
+    }
+  }
+}
+
+bool CheckifSolved() {
+  // Check if we are in the central area
+  return (x >= 5 && x <= 6 && y >= 4 && y <= 5);
+}
+
+String optimizePath(String& seeked) {
+  String optimizedPath = seeked;
+  int i = 0;
+  while (i < optimizedPath.length() - 1) {
+    if (optimizedPath.charAt(i) == 'F' && optimizedPath.charAt(i + 1) == 'F') {
+      optimizedPath.remove(i, 1);
+    } else {
+      i++;
+    }
+  }
+  return optimizedPath;
+}
+
+void followString(String path) {
+  for (int i = 0; i < path.length(); i++) {
+    if (path.charAt(i) == 'F') {
+      moveForward();
+    } else if (path.charAt(i) == 'L') {
+      turnLeft();
+    } else if (path.charAt(i) == 'R') {
+      turnRight();
+    }
+  }
+}
